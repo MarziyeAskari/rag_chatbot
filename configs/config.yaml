@@ -1,0 +1,60 @@
+#Rag chatbot Configurations
+
+
+#Application Setting
+app:
+    name: "Rag chatbot"
+    version:  "1.0.0"
+    host: "0.0.0.0"
+    port: 8000
+    debug:  false
+
+# LLM Setting
+llm:
+    provider: "OpenAI"
+    model:  "gpt-4o-mini"
+    temperature:  0.7
+    max_tokens: 1000
+    api-key:  "${OPENAI_API_KEY}"
+
+# Embedding Setting
+embeddings:
+    provider: "Sentence Transformer"
+    model:  "sentence-transformers/all-MiniLM-L6-v2"
+
+#Vectoe Database Setting
+vector_database:
+    type: "Milvus"
+    collection_name: "rag_doc"
+    url_milvus: ""
+
+# Document Setting(Langchain)
+document_processing:
+    chunk_size: 1000
+    chunk_overlap: 200
+    supported_format:
+        - "pdf"
+        - "md"
+        - "txt"
+        - "docx"
+
+#Retrieval Setting
+retrieval_setting:
+    top_key:  3
+    similarity_threshold: 0.9
+    index: "HNSW"
+    search_type: "Cosine Similarity"
+
+#Data Path
+path:
+    documents:  ""
+    processed: ""
+    vector_store: ""
+    uploads: ""
+
+
+#Logging
+logging:
+  level: "INFO"
+  file: "./logs/rag_chatbot.log"
+

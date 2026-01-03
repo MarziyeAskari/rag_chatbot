@@ -1,0 +1,5 @@
+pydantic-settings
+pydantic
+python-dotenv
+fastapi
+black
