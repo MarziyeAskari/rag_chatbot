@@ -1,3 +1,4 @@
+sqlalchemy
 langchain-classic
 langchain-community
 langchain-core
