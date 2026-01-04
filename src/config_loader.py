@@ -31,23 +31,31 @@ class Settings(BaseSettings):
     embedding_provider: str ="Sentence Transformer"
     embedding_model: str ="gpt-40-mini"
 
-    #Vector Database Setting
-    vector_database_type: str ="Milvus"
-    vector_database_collection_name: str ="Rag_docs"
-    vector_database_url: str =""
+    # Vector store settings
+    vector_store_type: str = "chroma"
+    vector_store_path: str = "./data/vectorstore"
+    collection_name: str = "rag_documents"
 
     # Document processing
     chunk_size: int = 1000
     chunk_overlap: int = 200
 
     # Retrieval settings
-    top_k: int = 5
+    top_k: int = 2
     similarity_threshold: float = 0.7
 
     # Paths
     documents_path: str = "./data/documents"
     processed_path: str = "./data/processed"
     uploads_path: str = "./data/uploads"
+
+    #session management
+    use_database_session: bool =True
+    session_database_url: str =""
+    session_database_path: str = "./data/sessions.db"
+    session_timeout: int = 24
+    max_history_per_session: int = 50
+
 
     class Config:
         env_file = ".env"
@@ -107,4 +115,11 @@ def get_setting() -> Settings:
         if "retrieval" in config:
             settings.retrieval = configu["similarity_threshold"].get("similarity_threshold",settings.similarity_threshold)
             settings.top_k = configu["retrieval"].get("top_k",settings.top_k)
+        if "session" in config:
+            settings.use_database_session = configu["session"].get("use_database_session",settings.use_database_session)
+            settings.session_database_url = configu["session"].get("database_url",settings.session_database_url)
+            settings.session_timeout = configu["session"].get("timeout",settings.session_timeout)
+            settings.session_database_path = configu["session"].get("database_path",settings.session_database_path)
+            settings.max_history_per_session = configu["session"].get("max_history_per_session",settings.max_history_per_session)
+
     return settings

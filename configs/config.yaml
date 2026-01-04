@@ -22,11 +22,11 @@ embeddings:
     provider: "Sentence Transformer"
     model:  "sentence-transformers/all-MiniLM-L6-v2"
 
-#Vectoe Database Setting
-vector_database:
-    type: "Milvus"
-    collection_name: "rag_doc"
-    url_milvus: ""
+# Vector Store Settings
+vector_store:
+  type: "chroma"  # Options: chroma, faiss
+  persist_directory: "./data/vectorstore"
+  collection_name: "rag_documents"
 
 # Document Setting(Langchain)
 document_processing:
@@ -38,12 +38,11 @@ document_processing:
         - "txt"
         - "docx"
 
-#Retrieval Setting
-retrieval_setting:
-    top_key:  3
-    similarity_threshold: 0.9
-    index: "HNSW"
-    search_type: "Cosine Similarity"
+# Retrieval Settings
+retrieval:
+  top_k: 5
+  similarity_threshold: 0.7
+  search_type: "similarity"
 
 #Data Path
 path:
@@ -51,6 +50,13 @@ path:
     processed: ""
     vector_store: ""
     uploads: ""
+#session Management
+sessions:
+    use_database: true
+    database_url: ""
+    database_path:  "./data/session.db"
+    session_timeout_hour: 24
+    max_history_per_session: 50
 
 
 #Logging
