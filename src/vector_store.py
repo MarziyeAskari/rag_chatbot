@@ -7,13 +7,14 @@ from langchain_core.documents import Document
 
 logger = logging.getLogger(__name__)
 
+
 class VectorStore:
     def __init__(self,
-                 persist_directory:str = "./data/vectorstore",
+                 persist_directory: str = "./data/vectorstore",
                  collection_name: str = "rag_documents",
-                 embedding_model: str ="sentence-transformers/all-MiniLM-L6-v2",
-                 embedding_provider:str="sentence-transformers",
-                 api_key: Optional[str] = None,):
+                 embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+                 embedding_provider: str = "sentence-transformers",
+                 api_key: Optional[str] = None, ):
         self.persist_directory = Path(persist_directory)
         self.persist_directory.mkdir(parents=True, exist_ok=True)
         self.collection_name = collection_name
@@ -22,9 +23,9 @@ class VectorStore:
         else:
             from langchain_community.embeddings import HuggingFaceEmbeddings
             self.embeddings = HuggingFaceEmbeddings(
-                    embedding_model=embedding_model,
-                    model_kwargs={"device":"cpu"}
-                )
+                embedding_model=embedding_model,
+                model_kwargs={"device": "cpu"}
+            )
             self.vectorstore = None
             self._load_or_create_vectorstore()
 
@@ -45,10 +46,9 @@ class VectorStore:
             )
             logger.info(f"Created new vector store ")
 
-
     def add_documents(self, documents: List[Document]):
         try:
-            ids=self.vectorstore.add_documents(documents)
+            ids = self.vectorstore.add_documents(documents)
             self.vectorstore.persist()
             logger.info(f"Added {len(documents)} documents to vectorstore")
             return ids
@@ -57,7 +57,7 @@ class VectorStore:
             raise
 
     def similarity_search(self,
-                          query: str, k:int =2, threshold:float = 0.8) -> List[Document]:
+                          query: str, k: int = 2, threshold: float = 0.8) -> List[Document]:
         try:
             results = self.vectorstore.similarity_search(query, k=k, threshold=threshold)
             logger.info(f"Found {len(results)} similar documents for query: {query}")
@@ -66,7 +66,7 @@ class VectorStore:
             logger.error(f"Error searching similar documents: {str(e)}")
             raise
 
-    def similarity_search_with_score(self, query: str, k:int =2) -> List[tuple]:
+    def similarity_search_with_score(self, query: str, k: int = 2) -> List[tuple]:
         try:
             results = self.vectorstore.similarity_search_with_score(query, k=k)
             logger.info(f"Found {len(results)} similar documents with score for query: {query}")
@@ -82,17 +82,11 @@ class VectorStore:
         except Exception as e:
             logger.error(f"Error deleting collection: {str(e)}")
             raise
+
     def get_collection_size(self) -> int:
         try:
-            collection=self.vectorstore._collection()
+            collection = self.vectorstore._collection()
             return collection.count()
         except Exception as e:
             logger.error(f"Error getting collection size: {str(e)}")
             raise
-
-
-
-
-
-
-
