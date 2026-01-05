@@ -30,7 +30,7 @@ vector_store: Optional[VectorStore] = None
 rag_chain: Optional[RagChain] = None
 session_manager: Optional[Union[SessionManager,DatabaseSessionManager]] = None
 
-setting = get_setting()
+settings = get_setting()
 
 
 @asynccontextmanager
@@ -38,39 +38,39 @@ async def lifespan(app: FastAPI):
     global rag_chain, session_manager, document_processor, vector_store, rag_chain
     try:
         logger.info(f"Initializing RAG Chatbot components...")
-        if setting.use_database_session:
+        if settings.use_database_session:
             logger.info("Using database-baked session manager for persistent storage")
             session_manager = DatabaseSessionManager(
-                database_url=setting.database_url if setting.session_database_url else None,
-                database_path=setting.database_path if setting.session_database_url else None,
-                session_timeout=setting.session_timeout,
-                max_history_per_session=setting.max_history_per_session,
+                database_url=settings.database_url if settings.session_database_url else None,
+                database_path=settings.database_path if settings.session_database_url else None,
+                session_timeout=settings.session_timeout,
+                max_history_per_session=settings.max_history_per_session,
             )
         else:
             logger.info("Using in-memory session manager")
             session_manager = SessionManager(
-                session_timeout=setting.session_timeout,
-                max_history_per_session=setting.max_history_per_session,
+                session_timeout=settings.session_timeout,
+                max_history_per_session=settings.max_history_per_session,
             )
 
         document_processor = DocumentProcessor(
-            chunk_size=setting.document_chunk_size,
-            chunk_overlap=setting.document_chunk_overlap,
+            chunk_size=settings.document_chunk_size,
+            chunk_overlap=settings.document_chunk_overlap,
         )
         vector_store = VectorStore(
-            persist_directory=setting.vector_store_path,
-            collection_name=setting.collection_name,
-            embedding_provider=setting.embedding_provider,
-            embedding_model=setting.embedding_model,
-            api_key=setting.api_key if setting.embedding_provider == "openai" else None,
+            persist_directory=settings.vector_store_path,
+            collection_name=settings.collection_name,
+            embedding_provider=settings.embedding_provider,
+            embedding_model=settings.embedding_model,
+            api_key=settings.api_key if settings.embedding_provider == "openai" else None,
         )
         rag_chain = RagChain(
             vector_store=vector_store,
-            llm_provider=setting.llm_provider,
-            model=setting.rag_model,
-            max_tokens=setting.max_tokens,
-            temperature=setting.temperature,
-            api_key=setting.api_key if setting.llm_provider == "openai" else None,
+            llm_provider=settings.llm_provider,
+            model=settings.rag_model,
+            max_tokens=settings.max_tokens,
+            temperature=settings.temperature,
+            api_key=settings.api_key if settings.llm_provider == "openai" else None,
         )
         logger.info(f"RAG Chatbot initialized successfully")
     except Exception as ex:
@@ -84,8 +84,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title=setting.app_name,
-    version=setting.version,
+    title=settings.app_name,
+    version=settings.version,
     description="A production RAG (Retrieval-Augmented Generation) Chatbot API",
     lifespan=lifespan,
 )
@@ -134,7 +134,7 @@ async def root():
         return FileResponse(str(index_path))
     return {
         "message": "Welcome to RAG Chatbot API",
-        "version": setting.app_version,
+        "version": settings.app_version,
         "docs": "/docs",
     }
 
@@ -143,7 +143,7 @@ async def root():
 async def api_info():
     return {
         "message": "Welcome to RAG Chatbot API",
-        "version": setting.app_version,
+        "version": settings.app_version,
         "docs": "/docs",
     }
 
@@ -179,7 +179,7 @@ async def query(request: QueryRequest):
         result = rag_chain.query(
             question=request.question,
             conversation_history=conversation_history,
-            top_key=request.top_k or setting.top_k,
+            top_key=request.top_k or settings.top_k,
         )
         session_manager.add_message(session_id, "assistant", result["answer"])
         duration = time.time() - start_time
@@ -192,7 +192,7 @@ async def upload_file (file: UploadFile = File(...)):
     if not document_processor or not vector_store:
         raise HTTPException(status_code= 503,detail="some components are not initialized")
     try:
-        upload_dir = Path(setting.uploads_path)
+        upload_dir = Path(settings.uploads_path)
         upload_dir.mkdir(parents=True, exist_ok=True)
 
         file_path = upload_dir / file.filename
@@ -252,7 +252,7 @@ async def get_vector_store_stats():
         return {
             "collection_name": vector_store.collection_name,
             "total_documents": size,
-            "vector_store_path":setting.vectorstore_path,
+            "vector_store_path":settings.vectorstore_path,
         }
     except Exception as e:
         logger.error(f"Error getting vector store stats : {str(e)}")
@@ -386,7 +386,7 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "app.main:app",
-        host=setting.host,
-        port=setting.port,
-        reload=setting.debug,
+        host=settings.host,
+        port=settings.port,
+        reload=settings.debug,
     )
