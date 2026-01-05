@@ -17,10 +17,10 @@ class DatabaseSessionManager:
             database_url: str,
             database_path: str,
             session_timeout: int = 24,
-            max_history_per_sesion: int = 50):
+            max_history_per_session: int = 50):
         self.db_manager = DatabaseManager(database_url=database_url, databae_path=database_path)
         self.session_timeout = timedelta(hours=session_timeout)
-        self.max_history_per_sesion = max_history_per_sesion
+        self.max_history_per_session = max_history_per_session
 
     def _get_db_session(self) -> SQLSession:
         return self.db_manager.get_session()
