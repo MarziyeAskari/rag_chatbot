@@ -52,13 +52,13 @@ class MessageModel(Base):
         }
 
 class DatabaseManager:
-    def __init__(self, database_url:Optional[str], databae_path:Optional[str]):
+    def __init__(self, database_url:Optional[str]=None,databae_path:Optional[str]=None):
         if database_url is None:
             self.database_url = database_url
         elif databae_path:
             db_path = Path(databae_path)
             db_path = db_path.mkdir(parents=True, exist_ok=True)
-            self.database_url = f"sqlite:///{databae_path}"
+            self.database_url = f"sqlite:///{db_path}"
         else:
             default_path = Path("./data/sessions.db")
             default_path.parent.mkdir(parents=True, exist_ok=True)
