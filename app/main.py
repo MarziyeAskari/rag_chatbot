@@ -2,19 +2,13 @@
 FastAPI application for RAG Chatbot
 """
 from contextlib import asynccontextmanager
-from csv import excel
 from pathlib import Path
-from typing import List
-
-from black.lines import Optional
-from fastapi import FastAPI, HTTPException
+from typing import List, Optional, Union
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from openai import vector_stores
 from pydantic import BaseModel
-from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import RedirectResponse
-from starlette.staticfiles import StaticFiles
-
+from fastapi.middleware.cors import CORSMiddleware
 from src.config_loader import get_setting
 import logging
 
@@ -34,7 +28,7 @@ logger = logging.getLogger(__name__)
 document_processor: Optional[DocumentProcessor] = None
 vector_store: Optional[VectorStore] = None
 rag_chain: Optional[RagChain] = None
-session_manager: Optional[SessionManager] = None
+session_manager: Optional[Union[SessionManager,DatabaseSessionManager]] = None
 
 setting = get_setting()
 
@@ -113,13 +107,13 @@ if fronted_path.exists():
 class QueryRequest(BaseModel):
     Question: str
     top_k: Optional[int] = 3
-    session_id: Optional[int] = None
+    session_id: Optional[str] = None
 
 
 class QueryResponse(BaseModel):
     answer: str
     source_documents: List[dict]
-    session_id: int
+    session_id: str
 
 
 class UploadResponse(BaseModel):
@@ -170,11 +164,11 @@ async def health_check():
 @app.post("/query", response_model=List[QueryResponse])
 async def query(request: QueryRequest):
     if not rag_chain or not session_manager:
-        raise HTTPException(status_code=404, detail="RAG Chain or session not initialized")
+        raise HTTPException(status_code=503, detail="RAG Chain or session not initialized")
     import time
     start_time = time.time()
     try:
-        session = session_manager.get_session(request.session_id)
+        session = session_manager.get_or_create_session(request.session_id)
         session_id = session.session_id
         conversation_history = session_manager.get_conversation_history(
             session_id,
@@ -192,3 +186,207 @@ async def query(request: QueryRequest):
     except Exception as ex:
         duration = time.time() - start_time
         logger.error(f"Error processing query : {str(ex)}")
+
+@app.post("/upload", response_model=UploadResponse)
+async def upload_file (file: UploadFile = File(...)):
+    if not document_processor or not vector_store:
+        raise HTTPException(status_code= 503,detail="some components are not initialized")
+    try:
+        upload_dir = Path(setting.uploads_path)
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        file_path = upload_dir / file.filename
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+
+        chunks = document_processor.process_files(str(file_path))
+
+        ids = vector_store.add_documents(chunks)
+        total_chunks = vector_store.get_collection_size()
+        logger.info(f"Upload and Processed {file.filename}: {total_chunks} chunks ")
+
+        return UploadResponse(
+            message=f"Successfully processed{file.filename}",
+            chunk_size=total_chunks,
+            total_chunks=total_chunks,
+        )
+    except Exception as e:
+        logger.error(f"Error processing file : {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/upload-directly")
+async def upload_directly(directory_path:str):
+    if not document_processor or not vector_store:
+        raise HTTPException(status_code= 503,detail="some components are not initialized")
+    try:
+        chunks = document_processor.process_files(directory_path)
+        if chunks:
+            ind = vector_store.add_documents(chunks)
+        total_chunks = vector_store.get_collection_size()
+        return {
+            "message": f"Successfully processed{directory_path}",
+            "chunk_size": total_chunks,
+            "total_chunks": total_chunks,
+        }
+    except Exception as e:
+        logger.error(f"Error processing directory : {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/vectorstore")
+async def clear_vector_store():
+    if not vector_store:
+        raise HTTPException(status_code=503,detail="some components are not initialized")
+    try:
+        vector_store.delete_collection()
+        return {"message": f"Vector store cleared successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting vector store : {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/vectorstore/stats")
+async def get_vector_store_stats():
+    if not vector_store:
+        raise HTTPException(status_code=503,detail="some components are not initialized")
+    try:
+        size = vector_store.get_collection_size()
+        return {
+            "collection_name": vector_store.collection_name,
+            "total_documents": size,
+            "vector_store_path":setting.vectorstore_path,
+        }
+    except Exception as e:
+        logger.error(f"Error getting vector store stats : {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/monitoring/health")
+async def get_monitoring_health():
+    pass
+
+@app.get("/monitoring/metrics")
+async def get_monitoring_metrics():
+    pass
+
+@app.post("/sessions")
+async def create_sessions():
+    if not session_manager:
+        return HTTPException(status_code=503, detail="some components are not initialized")
+    try:
+        session = session_manager.create_session()
+        return {
+            "session_id": session.session_id,
+            "created_at": session.created_at,
+            "message": "session created successfully",
+        }
+    except Exception as e:
+        logger.error(f"Error creating session : {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/sessions/{session_id}")
+async def get_session_info(session_id: str):
+    if not session_manager:
+        raise HTTPException(status_code=503, detail="some components are not initialized")
+    try:
+        session = session_manager.get_session(session_id)
+        return {
+            "session_id": session.session_id,
+            "created_at": session.created_at,
+            "last_accessed": session.last_accessed,
+            "message_count": len(session.messages),
+            "messages": [
+                {
+                    "role": msg.role,
+                    "content":msg.content,
+                    "timestamp":msg.timestamp,
+                }
+                for msg in session.messages
+            ],
+            "metadata": session.metadata,
+        }
+    except Exception as e:
+        logger.error(f"Error getting session : {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/sessions/{session_id}/history")
+async def get_session_history(session_id: str, max_messages: int):
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=503, detail="some components are not initialized")
+    try:
+        history = session_manager.get_conversation_history(session_id,max_messages)
+        return [
+            {
+                "role":role,
+                "content": content
+            }
+            for role, content in history
+        ]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.info(f"Error getting session history : {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/sessions/{session_id}")
+async def delete_session(session_id: str):
+    if not session_manager:
+        raise HTTPException(status_code=503, detail="some components are not initialized")
+    try:
+        deleted = session_manager.delete_session(session_id)
+        if not deleted:
+            raise HTTPException(status_code=500, detail="session was not deleted")
+        return {
+            "message": f"Session {session_id} was deleted successfully",
+        }
+    except Exception as e:
+        logger.error(f"Error deleting session : {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+app.get("/sessions")
+async def list_sessions():
+    if not session_manager:
+        raise HTTPException(status_code=503, detail="some components are not initialized")
+    try:
+        sessions = session_manager.get_all_sessions()
+        return{
+            "total_sessions": len(sessions),
+            "sessions": [
+                {
+                "session_id": session.session_id,
+                "created_at": session.created_at.isoformat(),
+                "last_accessed":session.last_accessed.isoformat(),
+                "message_count": len(session.messages),
+                }
+             for session in sessions
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Error getting session : {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/sessions/cleanup")
+async def cleanup_sessions():
+    if not session_manager:
+        raise HTTPException(status_code=503, detail="some components are not initialized")
+    try:
+        cleaned_sessions = session_manager.cleanup_expired_sessions()
+        return{
+            "message": f"Successfully cleaned up {len(cleaned_sessions)} sessions",
+            "activate_sessions": session_manager.get_session_count()
+        }
+    except Exception as e:
+        logger.error(f"Error cleaning up session : {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "app.main:app",
+        host=setting.host,
+        port=setting.port,
+        reload=setting.debug,
+    )

@@ -69,7 +69,7 @@ class SessionManager:
             logger.info(f"Created session {session_id}")
             return session
 
-    def get_session(self, session_id:str) -> Optional[Session]:
+    def get_session(self, session_id: str) -> Optional[Session]:
         with self.lock:
             session = self.sessions.get(session_id)
             if session is None:
@@ -96,16 +96,20 @@ class SessionManager:
             with self.lock:
                 session.messages = session.messages[-self.max_history_per_session:]
 
-    def get_conversation_history(self, session_id:str, max_message:Optional[int]=None) -> List[Tuple[str,str]]:
+    def get_conversation_history(self, session_id: str, max_message:Optional[int]=None) -> List[Tuple[str,str]]:
         session = self.get_session(session_id)
         if not session:
             return []
         return session.get_conversation_history(max_message)
+
+
     def get_conversation_context(self, session_id:str, max_message:Optional[int]=10) -> str:
         session = self.get_session(session_id)
         if not session:
             return ""
         return session.get_conversation_context(max_message)
+
+
     def delete_session(self, session_id:str) -> bool:
         with self.lock:
             if session_id in self.sessions:
