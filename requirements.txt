@@ -1,3 +1,4 @@
+mlflow-skinny
 uvicorn
 sqlalchemy
 langchain-classic
