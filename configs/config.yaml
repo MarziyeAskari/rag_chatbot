@@ -58,6 +58,14 @@ sessions:
     session_timeout_hour: 24
     max_history_per_session: 50
 
+embedding_finetuning:
+    enabled: false
+    base_model: "sentence-transformers/all-MiniLM-L6-v2"
+    output_dir: "./model/embedding_finetuned"
+    epoch: 1
+    batch_size: 6
+    max_session: 200
+    max_pairs_per_session: 50
 
 #Logging
 logging:

@@ -56,6 +56,17 @@ class Settings(BaseSettings):
     session_timeout: int = 24
     max_history_per_session: int = 50
 
+    # Embedding fine-tuning
+    embedding_finetune_enabled: bool = False
+    embedding_finetune_base_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_finetune_output_dir: str = "./models/embedding_finetuned"
+    embedding_finetune_epochs: int = 1
+    embedding_finetune_batch_size: int = 16
+    embedding_finetune_max_sessions: int = 200
+    embedding_finetune_max_pairs_per_session: int = 50
+
+
+
 
     class Config:
         env_file = ".env"
@@ -121,5 +132,13 @@ def get_setting() -> Settings:
             settings.session_timeout = configu["session"].get("timeout",settings.session_timeout)
             settings.session_database_path = configu["session"].get("database_path",settings.session_database_path)
             settings.max_history_per_session = configu["session"].get("max_history_per_session",settings.max_history_per_session)
+        if "embedding_finetune" in config:
+            settings.embedding_finetune_enabled = configu["embedding_finetune"].get("enabled", settings.embedding_finetune_enabled)
+            settings.embedding_finetune_base_model = configu["embedding_finetune"].get("base_model", settings.embedding_finetune_base_model)
+            settings.embedding_finetune_output_dir = configu["embedding_finetune"].get("output_dir",  settings.embedding_finetune_output_dir)
+            settings.embedding_finetune_epochs = configu["embedding_finetune"].get("epochs", settings.embedding_finetune_epochs)
+            settings.embedding_finetune_batch_size = configu["embedding_finetune"].get("batch_size",settings.embedding_finetune_batch_size)
+            settings.embedding_finetune_max_sessions = configu["embedding_finetune"].get("max_sessions", settings.embedding_finetune_max_sessions)
+            settings.embedding_finetune_max_pairs_per_session = configu["embedding_finetune"].get( "max_pairs_per_session", settings.embedding_finetune_max_pairs_per_session)
 
     return settings
