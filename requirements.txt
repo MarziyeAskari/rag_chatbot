@@ -1,3 +1,4 @@
+optuna
 torch
 sentence-transformers
 mlflow-skinny
