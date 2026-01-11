@@ -20,11 +20,11 @@ logger = logging.getLogger(__name__)
 
 class HyperparamTuning:
     def __init__(self,
-                 test_question: list,
+                 test_questions: list,
                  excepted_answers: list = None,
                  n_trials: int = 20,
                  study_name: str = "rag_hyperparameter_tuning", ):
-        self.test_question = test_question
+        self.test_questions = test_questions
         self.excepted_answers = excepted_answers
         self.n_trials = n_trials
         self.study_name = study_name
@@ -98,7 +98,7 @@ class HyperparamTuning:
                     api_key=self.setting.openai_api_key if self.setting.llm_provider == "openai" else None,
                 )
                 results = []
-                for question in self.test_question:
+                for question in self.test_questions:
                     try:
                         result = rag_chain.query(question, top_key=params["top_key"])
                         results.append({
@@ -159,11 +159,11 @@ class HyperparamTuning:
 
 
 if __name__ == "__main__":
-    test_question = [
+    test_questions = [
            "What is the main topic of the documents?",
         "Can you summarize the key points?",
     ]
-    tuner = HyperparamTuning(test_question=test_question, n_trials=10)
+    tuner = HyperparamTuning(test_questions=test_questions, n_trials=10)
     results = tuner.optimize()
     print(f"Best parameters: {results['best_params']}")
     print(f"Best score: {results['best_value']}")
