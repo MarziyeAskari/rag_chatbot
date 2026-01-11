@@ -6,6 +6,7 @@ import optuna
 from optuna.samplers import TPESampler
 
 from app.main import document_processor, vector_store, rag_chain
+from mlops.metrics import calculate_metrics
 from mlops.mlflow_utils import MlflowTracker
 from src.config_loader import get_setting
 import logging
@@ -108,10 +109,8 @@ class HyperparamTuning:
                         logger.warning(f"Error in trial {trial.number}: {str(e)}")
                         results.append({"question": question, "error": str(e)})
 
-                metrics = {}
-
-                # metrics = calculate_metrics(results, self.excepted_answers)
-                # self.mlflow_tracker.log_metrics(metrics)
+                metrics = calculate_metrics(results, self.excepted_answers)
+                self.mlflow_tracker.log_metrics(metrics)
 
                 if trial.number == 0 or metrics["overall_score"] > self.study.best_value:
                     self.mlflow_tracker.log_model(
