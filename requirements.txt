@@ -1,3 +1,5 @@
+opentelemetry-instrumentation-openai
+prometheus-client
 rouge-score
 optuna
 torch
