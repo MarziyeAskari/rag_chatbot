@@ -91,16 +91,16 @@ class SessionManager:
         session = self.get_session(session_id)
         if not session:
             raise ValueError(f"Session {session_id} does not exist")
-        Session.add_message(role, content, metadata)
+        session.add_message(role, content, metadata)
         if len(session.messages) > self.max_history_per_session:
             with self.lock:
                 session.messages = session.messages[-self.max_history_per_session:]
 
-    def get_conversation_history(self, session_id: str, max_message:Optional[int]=None) -> List[Tuple[str,str]]:
+    def get_conversation_history(self, session_id: str, max_messages:Optional[int]=None) -> List[Tuple[str,str]]:
         session = self.get_session(session_id)
         if not session:
             return []
-        return session.get_conversation_history(max_message)
+        return session.get_conversation_history(max_messages)
 
 
     def get_conversation_context(self, session_id:str, max_message:Optional[int]=10) -> str:

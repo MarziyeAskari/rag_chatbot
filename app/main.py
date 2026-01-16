@@ -35,14 +35,16 @@ settings = get_setting()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global rag_chain, session_manager, document_processor, vector_store, rag_chain
+    global rag_chain, session_manager, document_processor, vector_store
     try:
         logger.info(f"Initializing RAG Chatbot components...")
         if settings.use_database_session:
-            logger.info("Using database-baked session manager for persistent storage")
+            logger.info("Using database-backed session manager for persistent storage")
+            database_url = settings.session_database_url or None
+            database_path = settings.session_database_path or None
             session_manager = DatabaseSessionManager(
-                database_url=settings.database_url if settings.session_database_url else None,
-                database_path=settings.database_path if settings.session_database_url else None,
+                database_url=database_url,
+                database_path=database_path,
                 session_timeout=settings.session_timeout,
                 max_history_per_session=settings.max_history_per_session,
             )
@@ -62,15 +64,17 @@ async def lifespan(app: FastAPI):
             collection_name=settings.collection_name,
             embedding_provider=settings.embedding_provider,
             embedding_model=settings.embedding_model,
-            api_key=settings.openai_api_key if settings.embedding_provider == "openai" else None,
+            api_key=settings.openai_api_key if settings.embedding_provider.lower() == "openai" else None,
         )
         rag_chain = RagChain(
             vector_store=vector_store,
             llm_provider=settings.llm_provider,
-            model=settings.rag_model,
-            max_tokens=settings.max_tokens,
-            temperature=settings.temperature,
-            api_key=settings.api_key if settings.llm_provider == "openai" else None,
+            model=settings.llm_model,
+            max_tokens=settings.llm_max_tokens,
+            temperature=settings.llm_temperature,
+            api_key=settings.openai_api_key if settings.llm_provider.lower() == "openai" else None,
+            top_k=settings.top_k,
+            similarity_threshold=settings.similarity_threshold,
         )
         logger.info(f"RAG Chatbot initialized successfully")
     except Exception as ex:
@@ -79,8 +83,9 @@ async def lifespan(app: FastAPI):
     yield
     logger.info(f"Shutting down RAG Chatbot ...")
     if session_manager:
-        session_manager.cleanup_expired_sessions()
-        logger.info(f"Cleaned up sessions. Active sessions{session_manager.get_session_count()}")
+        cleaned = session_manager.cleanup_expired_sessions()
+        count = session_manager.get_session_count() if hasattr(session_manager, "get_session_count") else None
+        logger.info(f"Cleaned up {cleaned} sessions. Active sessions: {count}")
 
 
 app = FastAPI(
@@ -97,10 +102,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-fronted_path = Path(__file__).parent.parent / "fronted"
-if fronted_path.exists():
-    app.mount("/static", StaticFiles(directory=fronted_path), name="static")
-    logger.info(f"Fronted static files from {fronted_path}")
+frontend_path = Path(__file__).parent.parent / "frontend"
+if frontend_path.exists():
+    app.mount("/static", StaticFiles(directory=frontend_path), name="static")
+    logger.info(f"Frontend static files from {frontend_path}")
 
 
 # Requests
@@ -129,7 +134,7 @@ class HealthResponse(BaseModel):
 
 @app.get("/")
 async def root():
-    index_path = fronted_path / "index.html"
+    index_path = frontend_path / "index.html"
     if index_path.exists():
         return FileResponse(str(index_path))
     return {
@@ -161,7 +166,7 @@ async def health_check():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/query", response_model=List[QueryResponse])
+@app.post("/query", response_model=QueryResponse)
 async def query(request: QueryRequest):
     if not rag_chain or not session_manager:
         raise HTTPException(status_code=503, detail="RAG Chain or session not initialized")
@@ -172,20 +177,26 @@ async def query(request: QueryRequest):
         session_id = session.session_id
         conversation_history = session_manager.get_conversation_history(
             session_id,
-            max_message=10
+            max_messages=10
         )
         session_manager.add_message(
             session_id, "user", request.question)
         result = rag_chain.query(
             question=request.question,
             conversation_history=conversation_history,
-            top_key=request.top_k or settings.top_k,
+            top_k=request.top_k or settings.top_k,
         )
         session_manager.add_message(session_id, "assistant", result["answer"])
         duration = time.time() - start_time
+        logger.info(f"Query handled in {duration:.3f}s (session={session_id})")
+        return QueryResponse(
+            answer=result["answer"],
+            session_id=session_id,
+            source_documents=result.get("source_documents",[]),
+        )
     except Exception as ex:
-        duration = time.time() - start_time
-        logger.error(f"Error processing query : {str(ex)}")
+        logger.error(f"Error processing query: {str(ex)}")
+        raise HTTPException(status_code=500, detail=str(ex))
 
 @app.post("/upload", response_model=UploadResponse)
 async def upload_file (file: UploadFile = File(...)):
@@ -201,14 +212,13 @@ async def upload_file (file: UploadFile = File(...)):
             f.write(content)
 
         chunks = document_processor.process_files(str(file_path))
-
-        ids = vector_store.add_documents(chunks)
-        total_chunks = vector_store.get_collection_size()
+        vector_store.add_documents(chunks)
+        total_chunks = vector_store.get_collection_size() if vector_store else 0
         logger.info(f"Upload and Processed {file.filename}: {total_chunks} chunks ")
 
         return UploadResponse(
             message=f"Successfully processed{file.filename}",
-            chunk_size=total_chunks,
+            chunk_size=settings.chunk_size,
             total_chunks=total_chunks,
         )
     except Exception as e:
@@ -220,15 +230,10 @@ async def upload_directly(directory_path:str):
     if not document_processor or not vector_store:
         raise HTTPException(status_code= 503,detail="some components are not initialized")
     try:
-        chunks = document_processor.process_files(directory_path)
+        chunks = document_processor.process_directory(directory_path)
         if chunks:
-            ind = vector_store.add_documents(chunks)
-        total_chunks = vector_store.get_collection_size()
-        return {
-            "message": f"Successfully processed{directory_path}",
-            "chunk_size": total_chunks,
-            "total_chunks": total_chunks,
-        }
+            vector_store.add_documents(chunks)
+        return {"message": f"Processed {directory_path}", "total_chunks": vector_store.get_collection_size()}
     except Exception as e:
         logger.error(f"Error processing directory : {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -248,11 +253,11 @@ async def get_vector_store_stats():
     if not vector_store:
         raise HTTPException(status_code=503,detail="some components are not initialized")
     try:
-        size = vector_store.get_collection_size()
+        size = vector_store.get_collection_size() if vector_store else 0
         return {
             "collection_name": vector_store.collection_name,
             "total_documents": size,
-            "vector_store_path":settings.vectorstore_path,
+            "vector_store_path":settings.vector_store_path,
         }
     except Exception as e:
         logger.error(f"Error getting vector store stats : {str(e)}")
@@ -260,16 +265,16 @@ async def get_vector_store_stats():
 
 @app.get("/monitoring/health")
 async def get_monitoring_health():
-    pass
+    return {"status": "ok"}
 
 @app.get("/monitoring/metrics")
 async def get_monitoring_metrics():
-    pass
+    return {"status": "ok"}
 
 @app.post("/sessions")
 async def create_sessions():
     if not session_manager:
-        return HTTPException(status_code=503, detail="some components are not initialized")
+        raise HTTPException(status_code=503, detail="some components are not initialized")
     try:
         session = session_manager.create_session()
         return {
@@ -285,35 +290,36 @@ async def create_sessions():
 @app.get("/sessions/{session_id}")
 async def get_session_info(session_id: str):
     if not session_manager:
-        raise HTTPException(status_code=503, detail="some components are not initialized")
+        raise HTTPException(status_code=503, detail="Session manager not initialized")
     try:
         session = session_manager.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
         return {
             "session_id": session.session_id,
             "created_at": session.created_at,
             "last_accessed": session.last_accessed,
             "message_count": len(session.messages),
             "messages": [
-                {
-                    "role": msg.role,
-                    "content":msg.content,
-                    "timestamp":msg.timestamp,
-                }
+                {"role": msg.role, "content": msg.content, "timestamp": msg.timestamp}
                 for msg in session.messages
             ],
             "metadata": session.metadata,
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error getting session : {str(e)}")
+        logger.error(f"Error getting session: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/sessions/{session_id}/history")
 async def get_session_history(session_id: str, max_messages: int):
     session = session_manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=503, detail="some components are not initialized")
+        raise HTTPException(status_code=404, detail="Session not found")
     try:
-        history = session_manager.get_conversation_history(session_id,max_messages)
+        history = session_manager.get_conversation_history(session_id ,max_messages = max_messages)
         return [
             {
                 "role":role,
@@ -343,7 +349,7 @@ async def delete_session(session_id: str):
         logger.error(f"Error deleting session : {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-app.get("/sessions")
+@app.get("/sessions")
 async def list_sessions():
     if not session_manager:
         raise HTTPException(status_code=503, detail="some components are not initialized")
@@ -372,10 +378,7 @@ async def cleanup_sessions():
         raise HTTPException(status_code=503, detail="some components are not initialized")
     try:
         cleaned_sessions = session_manager.cleanup_expired_sessions()
-        return{
-            "message": f"Successfully cleaned up {len(cleaned_sessions)} sessions",
-            "activate_sessions": session_manager.get_session_count()
-        }
+        return{"message": f"Successfully cleaned up {cleaned_sessions} sessions"}
     except Exception as e:
         logger.error(f"Error cleaning up session : {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -386,7 +389,7 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "app.main:app",
-        host=settings.host,
-        port=settings.port,
+        host=settings.app_host,
+        port=settings.app_port,
         reload=settings.debug,
     )

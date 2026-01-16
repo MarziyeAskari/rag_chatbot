@@ -47,7 +47,13 @@ class DatabaseSessionManager:
             db.refresh(session_model)
 
             logger.info(f"Created session id {session_id}")
-            return self._load_session_from_db(session_model, db)
+            return  Session(
+            session_id=session_model.session_id,
+            created_at=session_model.created_at,
+            last_accessed=session_model.last_accessed,
+            messages=[],
+            metadata=session_model.metadata_json or {},
+        )
         except Exception as e:
             db.rollback()
             logger.error(f"Failed to create session id {session_id}: {str(e)}")

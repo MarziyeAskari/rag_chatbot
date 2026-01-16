@@ -14,7 +14,7 @@ class SessionModel(Base):
     session_id = Column(String, primary_key=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_accessed = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    metadata_json = Column(JSON, nullable=False)
+    metadata_json = Column(JSON, nullable=False, default=dict)
 
     __table_args__ = (
         Index("idx_last_accessed", last_accessed),
@@ -40,7 +40,7 @@ class MessageModel(Base):
     role = Column(String, nullable=False)
     content = Column(String, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow ,nullable=False, index=True)
-    metadata_json = Column(JSON, default=dict)
+    metadata_json = Column(JSON,  default=dict)
 
     __table_args__ = (
         Index("idx_session_timestamp", session_id, timestamp),

@@ -2,15 +2,15 @@ import argparse
 import datetime
 from pathlib import Path
 
-from app.main import document_processor
+
 from mlops.mlflow_utils import MlflowTracker
 from src.config_loader import get_setting
 from src.documents_processor import logger
 from src.vector_store import VectorStore
-
+from src.documents_processor import DocumentProcessor
 
 def train(document_path: str, clear_existing: bool = False, use_mflow: bool = True):
-    setting = get_setting()
+    settings = get_setting()
     mlflow_tracker = None
     if use_mflow:
         mlflow_tracker = MlflowTracker(experiment_name="rag_training")
@@ -19,23 +19,23 @@ def train(document_path: str, clear_existing: bool = False, use_mflow: bool = Tr
     with mlflow_tracker.start_run(run_name=run_name) as run if mlflow_tracker else nullcontext():
         logger.info("Starting RAG training pipeline...")
         logger.info(f"Document patg: {document_path}")
-        logger.info(f"Vector Store path: {setting.vector_store_path}")
+        logger.info(f"Vector Store path: {settings.vector_store_path}")
 
         if mlflow_tracker:
             mlflow_tracker.log_params({
-                "chunk_size": setting.chunk_size,
-                "chunk_overlap": setting.chunk_overlap,
-                "embedding_model": setting.embedding_model,
-                "embedding_provider": setting.embedding_provider,
-                "collection_name": setting.collection_name, }
+                "chunk_size": settings.chunk_size,
+                "chunk_overlap": settings.chunk_overlap,
+                "embedding_model": settings.embedding_model,
+                "embedding_provider": settings.embedding_provider,
+                "collection_name": settings.collection_name, }
             )
         logger.info(f"Initializing vector store...")
         vector_store = VectorStore(
-            persist_directory=setting.vector_store_path,
-            collection_name=setting.collection_name,
-            embedding_model=setting.embedding_model,
-            embedding_provider=setting.embedding_provider,
-            api_key=setting.api_key if setting.embedding_provider == "openai" else None
+            persist_directory=settings.vector_store_path,
+            collection_name=settings.collection_name,
+            embedding_model=settings.embedding_model,
+            embedding_provider=settings.embedding_provider,
+            api_key=settings.openai_api_key if settings.embedding_provider == "openai" else None
         )
 
         if clear_existing:
@@ -49,6 +49,10 @@ def train(document_path: str, clear_existing: bool = False, use_mflow: bool = Tr
         if not document_path.exists():
             logger.error(f"Document path does not exist: {document_path}")
             return
+        document_processor = DocumentProcessor(
+            chunk_size=settings.chunk_size,
+            chunk_overlap=settings.chunk_overlap,
+        )
 
         chunks = document_processor.process_directory(str(document_path))
 
@@ -69,7 +73,7 @@ def train(document_path: str, clear_existing: bool = False, use_mflow: bool = Tr
             })
 
             mlflow_tracker.log_params({
-                "vector_store_path": setting.vector_store_path,
+                "vector_store_path": settings.vector_store_path,
             })
 
             logger.info(f"Training completed successfully")

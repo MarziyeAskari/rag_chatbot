@@ -33,7 +33,7 @@ def build_conversation_pairs(
             for idx in range(len(messages) - 1):
                 current_message = messages[idx]
                 next_message = messages[idx + 1]
-                if current_message.role == "user" or next_message.role == "assistant":
+                if current_message.role == "user" and next_message.role == "assistant":
                     examples.append(InputExample(texts=[current_message.content, next_message.content]))
                     pairs_add += 1
                 if pairs_add >= max_pairs_per_session:
@@ -105,11 +105,7 @@ def finetune_embedding(
         logger.info(f"Finished embedding fine-tune on conversation history")
         logger.info(f"Save fine-tuned embedding to {output_path}")
         if mlflow_tracker:
-            mlflow.sentence_transformers.log_model(
-                model,
-                artifact_path="embedding_model",
-                registered_model_name=register_name,
-            )
+            model.save(output_dir)
             mlflow_tracker.log_artifacts(str(output_path),artifact_path="embedding_model_files")
 
 
@@ -126,7 +122,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch-size", type=int, required=True, help="Batch size")
     parser.add_argument("--max-session", type=int, required=True, help="Limit session number to sample")
     parser.add_argument("--max-pairs-per-session", type=int, required=True, help="Limit pairs to session")
-    parser.add_argument("--output_dir", action="str", help="Directory to save fine-tune model", default=None)
+    parser.add_argument("--output_dir", type="str", help="Directory to save fine-tune model", default=None)
     parser.add_argument("--register-name", action="store", default="conversation_embeddings")
     parser.add_argument("--no-mlflow", action="store_true", help="Disable MLflow logging", default=False)
     parser.add_argument(

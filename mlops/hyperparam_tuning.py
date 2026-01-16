@@ -5,7 +5,7 @@ from typing import Dict
 import optuna
 from optuna.samplers import TPESampler
 
-from app.main import document_processor, vector_store, rag_chain
+
 from mlops.metrics import calculate_metrics
 from mlops.mlflow_utils import MlflowTracker
 from src.config_loader import get_setting
@@ -28,7 +28,7 @@ class HyperparamTuning:
         self.excepted_answers = excepted_answers
         self.n_trials = n_trials
         self.study_name = study_name
-        self.setting = get_setting()
+        self.settings= get_setting()
 
         self.mlflow_tracker = MlflowTracker(experiment_name="rag_hyperparameter_tuning")
 
@@ -57,17 +57,17 @@ class HyperparamTuning:
             ):
                 self.mlflow_tracker.log_params(params)
 
-                original_chunk_size = self.setting.chunk_size
-                original_chunk_overlap = self.setting.chunk_overlap
-                original_top_k = self.setting.top_k
-                original_temperature = self.setting.temperature
-                original_max_tokens = self.setting.max_tokens
+                original_chunk_size = self.settings.chunk_size
+                original_chunk_overlap = self.settings.chunk_overlap
+                original_top_k = self.settings.top_k
+                original_temperature = self.settings.llm_temperature
+                original_max_tokens = self.settings.llm_max_tokens
 
-                self.setting.chunk_size = params["chunk_size"]
-                self.setting.chunk_overlap = params["chunk_overlap"]
-                self.setting.top_k = params["top_k"]
-                self.setting.temperature = params["temperature"]
-                self.setting.max_tokens = params["max_tokens"]
+                self.settings.chunk_size = params["chunk_size"]
+                self.settings.chunk_overlap = params["chunk_overlap"]
+                self.settings.top_k = params["top_k"]
+                self.settings.llm_temperature = params["temperature"]
+                self.settings.llm_max_tokens = params["max_tokens"]
 
                 logger.info(f"Rebuilding vector store with new parameters ...")
                 document_processor = DocumentProcessor(
@@ -76,14 +76,14 @@ class HyperparamTuning:
                 )
 
                 vector_store = VectorStore(
-                    persist_directory=f"{self.setting.vector_store_path}_trial_{trial.number}",
-                    collection_name=self.setting.collection_name,
-                    embedding_model=self.setting.embedding_model,
-                    embedding_provider=self.setting.embedding_provider,
-                    api_key=self.setting.api_key if self.setting.embedding_provider == "openai" else None,
+                    persist_directory=f"{self.settings.vector_store_path}_trial_{trial.number}",
+                    collection_name=self.settings.collection_name,
+                    embedding_model=self.settings.embedding_model,
+                    embedding_provider=self.settings.embedding_provider,
+                    api_key=self.settings.openai_api_key if self.settings.embedding_provider == "openai" else None,
                 )
 
-                document_path = Path(self.setting.document_path)
+                document_path = Path(self.settings.documents_path)
                 if document_path.exists():
                     chunks = document_processor.process_directory(str(document_path))
                     if chunks:
@@ -91,11 +91,11 @@ class HyperparamTuning:
 
                 rag_chain = RagChain(
                     vector_store=vector_store,
-                    llm_provider=self.setting.llm_provider,
-                    model=self.setting.model,
+                    llm_provider=self.settings.llm_provider,
+                    model=self.settings.llm_model,
                     temperature=params["temperature"],
                     max_tokens=params["max_tokens"],
-                    api_key=self.setting.openai_api_key if self.setting.llm_provider == "openai" else None,
+                    api_key=self.settings.openai_api_key if self.settings.llm_provider == "openai" else None,
                 )
                 results = []
                 for question in self.test_questions:
@@ -104,7 +104,7 @@ class HyperparamTuning:
                         results.append({
                             "question": question,
                             "answer": result["answer"],
-                            "num_source": len(result["source_documents"]), })
+                            "num_sources": len(result["source_documents"]), })
                     except Exception as e:
                         logger.warning(f"Error in trial {trial.number}: {str(e)}")
                         results.append({"question": question, "error": str(e)})
@@ -119,11 +119,11 @@ class HyperparamTuning:
                         registered_model_name="rag_chatbot" if trial.number == 0 else None,
                     )
 
-                self.setting.chunk_size = original_chunk_size
-                self.setting.chunk_overlap = original_chunk_overlap
-                self.setting.top_k = original_top_k
-                self.setting.llm_temperature = original_temperature
-                self.setting.llm_max_tokens = original_max_tokens
+                self.settings.chunk_size = original_chunk_size
+                self.settings.chunk_overlap = original_chunk_overlap
+                self.settings.top_k = original_top_k
+                self.settings.llm_temperature = original_temperature
+                self.settings.llm_max_tokens = original_max_tokens
 
                 return float(metrics["overall_score"])
         except Exception as e:

@@ -4,9 +4,8 @@ import json
 import logging
 from pathlib import Path
 
-from mlflow import metrics
 
-from app.main import vector_store
+
 from mlops.finetune_embedding import nullcontext
 from mlops.metrics import calculate_metrics
 from mlops.mlflow_utils import MlflowTracker
@@ -34,7 +33,7 @@ def evaluate_rag(
             collection_name=settings.collection_name,
             embedding_model=settings.embedding_model,
             embedding_provider=settings.embedding_provider,
-            api_key=settings.api_key if settings.embedding_provider =="openai" else None,
+            api_key=settings.openai_api_key if settings.embedding_provider =="openai" else None,
         )
 
         size = vector_store.get_collection_size()
@@ -48,7 +47,7 @@ def evaluate_rag(
             vector_store=vector_store,
             llm_provider=settings.llm_provider,
             model=settings.llm_model,
-            temperature=settings.temperature,
+            temperature=settings.llm_temperature,
             max_tokens=settings.llm_max_tokens,
             api_key=settings.openai_api_key if settings.llm_provider =="openai" else None,
 
@@ -60,7 +59,7 @@ def evaluate_rag(
                 "llm_model": settings.llm_model,
                 "temperature": settings.llm_temperature,
                 "max_tokens": settings.llm_max_tokens,
-                "top_k": settings.llm_top_k,
+                "top_k": settings.top_k,
                 "embedding_model": settings.embedding_model,
                 "vector_store_size": size,
             } )
@@ -74,7 +73,7 @@ def evaluate_rag(
                 results.append(
                     {
                         "question": question,
-                        "answers": result["answer"],
+                        "answer": result["answer"],
                         "num_sources": len(result["source_documents"]),
                         "sources": [
                             {
