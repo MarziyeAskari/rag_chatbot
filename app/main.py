@@ -54,15 +54,15 @@ async def lifespan(app: FastAPI):
             )
 
         document_processor = DocumentProcessor(
-            chunk_size=settings.document_chunk_size,
-            chunk_overlap=settings.document_chunk_overlap,
+            chunk_size=settings.chunk_size,
+            chunk_overlap=settings.chunk_overlap,
         )
         vector_store = VectorStore(
             persist_directory=settings.vector_store_path,
             collection_name=settings.collection_name,
             embedding_provider=settings.embedding_provider,
             embedding_model=settings.embedding_model,
-            api_key=settings.api_key if settings.embedding_provider == "openai" else None,
+            api_key=settings.openai_api_key if settings.embedding_provider == "openai" else None,
         )
         rag_chain = RagChain(
             vector_store=vector_store,
@@ -85,7 +85,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.app_name,
-    version=settings.version,
+    version=settings.app_version,
     description="A production RAG (Retrieval-Augmented Generation) Chatbot API",
     lifespan=lifespan,
 )
@@ -105,7 +105,7 @@ if fronted_path.exists():
 
 # Requests
 class QueryRequest(BaseModel):
-    Question: str
+    question: str
     top_k: Optional[int] = 3
     session_id: Optional[str] = None
 

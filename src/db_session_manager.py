@@ -18,7 +18,7 @@ class DatabaseSessionManager:
             database_path: str,
             session_timeout: int = 24,
             max_history_per_session: int = 50):
-        self.db_manager = DatabaseManager(database_url=database_url, databae_path=database_path)
+        self.db_manager = DatabaseManager(database_url=database_url, database_path=database_path)
         self.session_timeout = timedelta(hours=session_timeout)
         self.max_history_per_session = max_history_per_session
 
@@ -40,7 +40,7 @@ class DatabaseSessionManager:
                 session_id=session_id,
                 created_at=now,
                 last_accessed=now,
-                metadata_json=json.dumps(metadata or {}),
+                metadata_json=metadata or {},
             )
             db.add(session_model)
             db.commit()
@@ -57,7 +57,7 @@ class DatabaseSessionManager:
 
     def _load_session_from_db(self, session_model: SessionModel, db: SQLSession):
         messages_models = db.query(MessageModel).filter(
-            MessageModel.session_id == session_model.session_id).order_by(MessageModel.created_at.desc()).all()
+            MessageModel.session_id == session_model.session_id).order_by(MessageModel.timestamp.desc()).all()
         messages = [
             Message(
                 role=msg.role,
@@ -101,29 +101,36 @@ class DatabaseSessionManager:
             session_model = db.query(SessionModel).filter(SessionModel.session_id == session_id).first()
             if not session_model:
                 raise ValueError(f"Session id {session_id} does not exist")
+
             message_model = MessageModel(
                 session_id=session_id,
                 role=role,
                 content=content,
                 timestamp=datetime.utcnow(),
-                metadata_json=json.dumps(metadata or {}),
+                metadata_json=metadata or {},
             )
-            db.add(session_model)
+            db.add(message_model)
+
             session_model.last_accessed = datetime.utcnow()
+
+            # Trim history if too long
             message_count = db.query(MessageModel).filter(MessageModel.session_id == session_id).count()
-            if message_count > self.max_history_per_sesion:
-                message_to_delete = db.query(MessageModel).filter(
-                    MessageModel.session_id == session_id
-                ).order_by(MessageModel.timestamp.asc()).limit(
-                    message_count - self.max_history_per_sesion
-                ).all()
-                for msg in message_to_delete:
+            if message_count > self.max_history_per_session:
+                to_delete = (
+                    db.query(MessageModel)
+                    .filter(MessageModel.session_id == session_id)
+                    .order_by(MessageModel.timestamp.asc())
+                    .limit(message_count - self.max_history_per_session)
+                    .all()
+                )
+                for msg in to_delete:
                     db.delete(msg)
+
             db.commit()
-            logger.debug(f"Added {role} to sessin {session_id} in {message_model}")
+            logger.debug(f"Added {role} message to session {session_id}")
         except Exception as e:
             db.rollback()
-            logger.error(f"Failed to add {role} to sessin {session_id}: {str(e)}")
+            logger.error(f"Failed to add message to session {session_id}: {str(e)}")
             raise
         finally:
             db.close()
@@ -147,11 +154,11 @@ class DatabaseSessionManager:
         history = self.get_conversation_history(session_id, max_messages=max_messages)
         if not history:
             return ""
-        context_parts = []
+        parts = []
         for role, content in history:
-            role_label = "User" if role else "Assistant"
-            context_parts.append((role_label, content))
-        return " ".join(context_parts)
+            role_label = "User" if role == "user" else "Assistant"
+            parts.append(f"{role_label}: {content}")
+        return "\n".join(parts)
 
     def delete_session(self, session_id: str) -> bool:
         db = self._get_db_session()
@@ -176,7 +183,7 @@ class DatabaseSessionManager:
         try:
             cutoff_time = datetime.utcnow() - self.session_timeout
             expired_sessions = db.query(SessionModel).filter(
-                SessionModel.last_accessed > cutoff_time
+                SessionModel.last_accessed < cutoff_time
             ).all()
             expired_count = 0
             for session in expired_sessions:
@@ -198,7 +205,7 @@ class DatabaseSessionManager:
         try:
             cutoff_time = datetime.utcnow() - self.session_timeout
             session_models = db.query(SessionModel).filter(
-                SessionModel.last_accessed > cutoff_time
+                SessionModel.last_accessed < cutoff_time
             ).all()
             return [self._load_session_from_db(session_model, db) for session_model in session_models]
         finally:

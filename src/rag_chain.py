@@ -69,7 +69,7 @@ class RagChain:
             if conversation_history:
                 history_parts =[]
                 for role, content in conversation_history:
-                    role_label = ["User" if role == "user" else "Assistant"]
+                    role_label = "User" if role == "user" else "Assistant"
                     history_parts.append(f"{role_label}: {content}")
                 conversation_context = ",".join(history_parts)
                 if conversation_context:

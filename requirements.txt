@@ -1,3 +1,4 @@
+packaging
 opentelemetry-instrumentation-openai
 prometheus-client
 rouge-score

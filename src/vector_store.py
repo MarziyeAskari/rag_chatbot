@@ -26,8 +26,8 @@ class VectorStore:
                 embedding_model=embedding_model,
                 model_kwargs={"device": "cpu"}
             )
-            self.vectorstore = None
-            self._load_or_create_vectorstore()
+        self.vectorstore = None
+        self._load_or_create_vectorstore()
 
     def _load_or_create_vectorstore(self):
         try:
@@ -56,15 +56,16 @@ class VectorStore:
             logger.error(f"Error adding documents: {str(e)}")
             raise
 
-    def similarity_search(self,
-                          query: str, k: int = 2, threshold: float = 0.8) -> List[Document]:
-        try:
-            results = self.vectorstore.similarity_search(query, k=k, threshold=threshold)
-            logger.info(f"Found {len(results)} similar documents for query: {query}")
-            return results
-        except Exception as e:
-            logger.error(f"Error searching similar documents: {str(e)}")
-            raise
+    def similarity_search(self, query: str, k: int = 5, threshold: float = 0.7):
+        results = self.vectorstore.similarity_search_with_score(query, k=k)
+
+        # Filter by similarity score
+        filtered = [
+            doc for doc, score in results
+            if score <= threshold  # lower score = more similar in Chroma
+        ]
+
+        return filtered
 
     def similarity_search_with_score(self, query: str, k: int = 2) -> List[tuple]:
         try:
@@ -85,7 +86,7 @@ class VectorStore:
 
     def get_collection_size(self) -> int:
         try:
-            collection = self.vectorstore._collection()
+            collection = self.vectorstore._collection
             return collection.count()
         except Exception as e:
             logger.error(f"Error getting collection size: {str(e)}")

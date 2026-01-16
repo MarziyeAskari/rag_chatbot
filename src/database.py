@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 Base = declarative_base()
 class SessionModel(Base):
     __tablename__ = "session"
-    session_id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, primary_key=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_accessed = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     metadata_json = Column(JSON, nullable=False)
@@ -32,14 +32,18 @@ class SessionModel(Base):
 class MessageModel(Base):
     __tablename__ = "message"
     message_id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("session.id"), nullable=False)
+    session_id = Column(
+        String,
+        ForeignKey("session.session_id"),
+        nullable=False
+    )
     role = Column(String, nullable=False)
     content = Column(String, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow ,nullable=False, index=True)
     metadata_json = Column(JSON, default=dict)
 
     __table_args__ = (
-        Index("idx_session_timestamp", timestamp),
+        Index("idx_session_timestamp", session_id, timestamp),
     )
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -52,17 +56,20 @@ class MessageModel(Base):
         }
 
 class DatabaseManager:
-    def __init__(self, database_url:Optional[str]=None,database_path:Optional[str]=None):
-        if database_url is None:
+    def __init__(
+            self,
+            database_url: Optional[str] = None,
+            database_path: Optional[str] = None,
+    ):
+        if database_url:
             self.database_url = database_url
-        elif database_path:
-            db_path = Path(database_path)
-            db_path = db_path.mkdir(parents=True, exist_ok=True)
-            self.database_url = f"sqlite:///{db_path}"
         else:
-            default_path = Path("./data/sessions.db")
-            default_path.parent.mkdir(parents=True, exist_ok=True)
-            self.database_url = f"sqlite:///{default_path}"
+            if database_path:
+                db_path = Path(database_path)
+            else:
+                db_path = Path("./data/sessions.db")
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            self.database_url = f"sqlite:///{db_path}"
 
         if self.database_url.startswith("sqlite://"):
             self.engine=create_engine(

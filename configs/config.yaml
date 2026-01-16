@@ -23,7 +23,7 @@ embeddings:
     model:  "sentence-transformers/all-MiniLM-L6-v2"
 
 # Vector Store Settings
-vector_store:
+vector_database:
   type: "chroma"  # Options: chroma, faiss
   persist_directory: "./data/vectorstore"
   collection_name: "rag_documents"
@@ -51,14 +51,14 @@ path:
     vector_store: ""
     uploads: ""
 #session Management
-sessions:
+session:
     use_database: true
     database_url: ""
     database_path:  "./data/session.db"
     session_timeout_hour: 24
     max_history_per_session: 50
 
-embedding_finetuning:
+embedding_finetune:
     enabled: false
     base_model: "sentence-transformers/all-MiniLM-L6-v2"
     output_dir: "./model/embedding_finetuned"

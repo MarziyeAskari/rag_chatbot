@@ -1,62 +1,73 @@
 """
-Configration loader module
+Configuration loader module (YAML + env overrides)
 """
+from __future__ import annotations
+
 import os
-from distutils.command.config import config
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 import yaml
-from pathlib import Path
 from pydantic_settings import BaseSettings
-from  dotenv import load_dotenv
-from typing import Dict,Any
-load_dotenv(verbose=True)
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+def _read_yaml(path: str) -> Dict[str, Any]:
+    p = Path(path)
+    if not p.exists():
+        return {}
+    with p.open("r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    return data
+
 
 class Settings(BaseSettings):
-    """ Application settings """
-    # App Setting
-    app_name: str ="RAG Chatbot"
-    app_version: str ="1.0.0"
-    app_host: str ="0.0.0.0"
-    app_port: str ="8080"
-    debug: bool =False
+    # ---------- APP ----------
+    app_name: str = "RAG Chatbot"
+    app_version: str = "1.0.0"
+    app_host: str = "0.0.0.0"
+    app_port: int = 8000
+    debug: bool = False
 
-    #LLM Setting
-    llm_provider: str ="OpenAI"
-    llm_model: str ="gpt-40-mini"
-    llm_temperature: float =0.7
-    llm_max_tokens:int =1000
-    openai_api_key: str =""
+    # ---------- LLM ----------
+    llm_provider: str = "openai"
+    llm_model: str = "gpt-4o-mini"
+    llm_temperature: float = 0.7
+    llm_max_tokens: int = 1000
+    openai_api_key: str = ""
 
-    # Embedding Setting
-    embedding_provider: str ="Sentence Transformer"
-    embedding_model: str ="gpt-40-mini"
+    # ---------- EMBEDDINGS ----------
+    embedding_provider: str = "sentence-transformers"
+    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 
-    # Vector store settings
+    # ---------- VECTOR STORE ----------
     vector_store_type: str = "chroma"
     vector_store_path: str = "./data/vectorstore"
     collection_name: str = "rag_documents"
 
-    # Document processing
+    # ---------- DOCUMENT PROCESSING ----------
     chunk_size: int = 1000
     chunk_overlap: int = 200
 
-    # Retrieval settings
-    top_k: int = 2
+    # ---------- RETRIEVAL ----------
+    top_k: int = 5
     similarity_threshold: float = 0.7
 
-    # Paths
+    # ---------- PATHS ----------
     documents_path: str = "./data/documents"
     processed_path: str = "./data/processed"
     uploads_path: str = "./data/uploads"
 
-    #session management
-    use_database_session: bool =True
-    session_database_url: str =""
-    session_database_path: str = "./data/sessions.db"
+    # ---------- SESSIONS ----------
+    use_database_session: bool = True
+    session_database_url: str = ""          # e.g. postgresql://...
+    session_database_path: str = "./data/session.db"
     session_timeout: int = 24
     max_history_per_session: int = 50
 
-    # Embedding fine-tuning
+    # ---------- EMBEDDING FINETUNE ----------
     embedding_finetune_enabled: bool = False
     embedding_finetune_base_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_finetune_output_dir: str = "./models/embedding_finetuned"
@@ -65,80 +76,101 @@ class Settings(BaseSettings):
     embedding_finetune_max_sessions: int = 200
     embedding_finetune_max_pairs_per_session: int = 50
 
-
-
-
     class Config:
         env_file = ".env"
-        env_file_encoding = "utf-8"
         case_sensitive = False
 
-def load_config(config_path: str = "configs/config.yaml") -> Dict[str, Any] :
+
+def get_setting(config_path: str = "configs/config.yaml") -> Settings:
     """
-    Load configuration from yaml file
-
+    Load Settings from:
+      1) defaults
+      2) YAML
+      3) environment variables override both
     """
-    config_file=Path(config_path)
-    if not config_file.exists():
-        return {}
+    cfg = _read_yaml(config_path)
 
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
-    if config:
-        if "llm" in config:
-            config["llm"]["api_key"] = os.getenv("OPENAI_API_KEY",config["llm"].get("api_key",""))
-        if "app" in config:
-            config["app"]["port"]= int(os.getenv("API_PORT",config["app"].get("port",8000)))
-            config["app"]["host"]= os.getenv("API_HOST",config["app"].get("host","0.0.0.0"))
-            config["app"]["debug"]= os.getenv("DEBUG",str(config["app"].get("debug",False))).lower()=="true"
+    # Map YAML sections -> Settings fields
+    merged: Dict[str, Any] = {}
 
-    return config
+    app = cfg.get("app", {})
+    merged.update({
+        "app_name": app.get("name"),
+        "app_version": app.get("version"),
+        "app_host": app.get("host"),
+        "app_port": app.get("port"),
+        "debug": app.get("debug"),
+    })
 
-def get_setting() -> Settings:
-    settings = Settings()
-    configu =load_config()
+    llm = cfg.get("llm", {})
+    merged.update({
+        "llm_provider": llm.get("provider"),
+        "llm_model": llm.get("model"),
+        "llm_temperature": llm.get("temperature"),
+        "llm_max_tokens": llm.get("max_tokens"),
+        # YAML uses api-key, we map it safely:
+        "openai_api_key": llm.get("api-key") or llm.get("api_key"),
+    })
 
-    if config:
-        if "app" in config:
-            settings.app_name =configu["app"].get("name",settings.app_name)
-            settings.app_version =configu["app"].get("version",settings.app_version)
-            settings.app_host =configu["app"].get("host",settings.app_host)
-            settings.app_port =configu["app"].get("port",settings.app_port)
-            settings.debug =configu["app"].get("debug",settings.debug)
-        if "llm" in config:
-            settings.llm_provider =configu["llm"].get("provider",settings.llm_provider)
-            settings.llm_model =configu["llm"].get("model",settings.llm_model)
-            settings.llm_temperature=configu["llm"].get("temperature",settings.llm_temperature)
-            settings.llm_max_tokens =configu["llm"].get("max_tokens",settings.llm_max_tokens)
-            settings.openai_api_key=configu["llm"].get("api_key",settings.openai_api_key)
-        if "embeddings" in config:
-            settings.embedding_provider =configu["embeddings"].get("provider",settings.embedding_provider)
-            settings.embedding_model =configu["embeddings"].get("model",settings.embedding_model)
+    emb = cfg.get("embeddings", {})
+    merged.update({
+        "embedding_provider": emb.get("provider"),
+        "embedding_model": emb.get("model"),
+    })
 
-        if "vector_database" in config:
-            settings.vector_database_type = configu["vector_database"].get("type",settings.vector_database_type)
-            settings.vector_database_collection_name = configu["vector_database"].get("collection_name",settings.vector_database_collection_name)
-            settings.vector_database_url = configu["vector_database"].get("base_url",settings.vector_database_url)
+    vs = cfg.get("vector_store", {})
+    merged.update({
+        "vector_store_type": vs.get("type"),
+        "vector_store_path": vs.get("persist_directory"),
+        "collection_name": vs.get("collection_name"),
+    })
 
-        if "document_processing" in config:
-            settings.chunk_size = configu["document_processing"].get("chunk_size",settings.chunk_size)
-            settings.chunk_overlap = configu["document_processing"].get("chunk_overlap",settings.chunk_overlap)
-        if "retrieval" in config:
-            settings.retrieval = configu["similarity_threshold"].get("similarity_threshold",settings.similarity_threshold)
-            settings.top_k = configu["retrieval"].get("top_k",settings.top_k)
-        if "session" in config:
-            settings.use_database_session = configu["session"].get("use_database_session",settings.use_database_session)
-            settings.session_database_url = configu["session"].get("database_url",settings.session_database_url)
-            settings.session_timeout = configu["session"].get("timeout",settings.session_timeout)
-            settings.session_database_path = configu["session"].get("database_path",settings.session_database_path)
-            settings.max_history_per_session = configu["session"].get("max_history_per_session",settings.max_history_per_session)
-        if "embedding_finetune" in config:
-            settings.embedding_finetune_enabled = configu["embedding_finetune"].get("enabled", settings.embedding_finetune_enabled)
-            settings.embedding_finetune_base_model = configu["embedding_finetune"].get("base_model", settings.embedding_finetune_base_model)
-            settings.embedding_finetune_output_dir = configu["embedding_finetune"].get("output_dir",  settings.embedding_finetune_output_dir)
-            settings.embedding_finetune_epochs = configu["embedding_finetune"].get("epochs", settings.embedding_finetune_epochs)
-            settings.embedding_finetune_batch_size = configu["embedding_finetune"].get("batch_size",settings.embedding_finetune_batch_size)
-            settings.embedding_finetune_max_sessions = configu["embedding_finetune"].get("max_sessions", settings.embedding_finetune_max_sessions)
-            settings.embedding_finetune_max_pairs_per_session = configu["embedding_finetune"].get( "max_pairs_per_session", settings.embedding_finetune_max_pairs_per_session)
+    dp = cfg.get("document_processing", {})
+    merged.update({
+        "chunk_size": dp.get("chunk_size"),
+        "chunk_overlap": dp.get("chunk_overlap"),
+    })
+
+    ret = cfg.get("retrieval", {})
+    merged.update({
+        "top_k": ret.get("top_k"),
+        "similarity_threshold": ret.get("similarity_threshold"),
+    })
+
+    paths = cfg.get("path", {})
+    merged.update({
+        "documents_path": paths.get("documents") or "./data/documents",
+        "processed_path": paths.get("processed") or "./data/processed",
+        "uploads_path": paths.get("uploads") or "./data/uploads",
+    })
+
+    sess = cfg.get("sessions", {})
+    merged.update({
+        "use_database_session": sess.get("use_database"),
+        "session_database_url": sess.get("database_url"),
+        "session_database_path": sess.get("database_path"),
+        "session_timeout": sess.get("session_timeout_hour"),
+        "max_history_per_session": sess.get("max_history_per_session"),
+    })
+
+    ft = cfg.get("embedding_finetuning", {})
+    merged.update({
+        "embedding_finetune_enabled": ft.get("enabled"),
+        "embedding_finetune_base_model": ft.get("base_model"),
+        "embedding_finetune_output_dir": ft.get("output_dir"),
+        "embedding_finetune_epochs": ft.get("epoch"),
+        "embedding_finetune_batch_size": ft.get("batch_size"),
+        "embedding_finetune_max_sessions": ft.get("max_session"),
+        "embedding_finetune_max_pairs_per_session": ft.get("max_pairs_per_session"),
+    })
+
+    # Remove None values so defaults remain
+    merged = {k: v for k, v in merged.items() if v is not None}
+
+    # Create Settings (env vars will override automatically)
+    settings = Settings(**merged)
+
+    # If env has OPENAI_API_KEY, prefer it
+    settings.openai_api_key = os.getenv("OPENAI_API_KEY", settings.openai_api_key)
 
     return settings
