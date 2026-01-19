@@ -3,7 +3,7 @@ import logging
 import os
 import threading
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any,Iterable
 
 import mlflow
 import mlflow.langchain
@@ -64,7 +64,6 @@ class MlflowTracker:
             }
         )
 
-        mlflow.set_experiment(experiment_name)
 
     @staticmethod
     def _default_file_tracking_uri(tracking_dir: Optional[str] = None) -> str:
@@ -137,9 +136,9 @@ class MlflowTracker:
     def end_run(self):
         def _end():
             if mlflow.active_run() is not None:
-                rid = self._current_run_id()
+                run_id = self._current_run_id()
                 mlflow.end_run()
-                logger.info(f"Ended run | {{'rid_id': {rid}}}")
+                logger.info(f"Ended run | {{'run_id': {run_id}}}")
 
         return self._with_lock(_end)
 
@@ -188,7 +187,7 @@ class MlflowTracker:
             return False
         if Version is not None:
             try:
-                v = Version(mlflow.langchain.__version__)
+                v = Version(mlflow.__version__)
                 if v < Version("2.7.0"):
                     self._log_warning("MLflow version may be too old for reliable mlflow.langchain",
                                       {"mlflow": mlflow.__version__})
@@ -233,6 +232,7 @@ class MlflowTracker:
                     if active is None:
                         raise RuntimeError("No active run to register from. Call start_run() first.")
                     model_uri = f"runs:/{active.info.run_id}/{artifact_path}"
+
                     mlflow.register_model(model_uri, registered_model_name)
                     self._log_info("Registered model", {"name": registered_model_name, "model_uri": model_uri})
 

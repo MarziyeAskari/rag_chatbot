@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 
 
-
+from contextlib import nullcontext
 from mlops.finetune_embedding import nullcontext
 from mlops.metrics import calculate_metrics
 from mlops.mlflow_utils import MlflowTracker
@@ -69,7 +69,7 @@ def evaluate_rag(
             logger.info(f"Evaluating question {i+1} of {len(test_questions)}: {question}.")
 
             try:
-                result = rag_chain.query(question, top_key=settings.top_k)
+                result = rag_chain.query(question=question, top_k=settings.top_k)
                 results.append(
                     {
                         "question": question,
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Evaluate RAG chatbot")
     parser.add_argument(
-        "--no--mlflow",
+        "--no-mlflow",
         action="store_true",
         help="Disable Mlflow logging"
     )

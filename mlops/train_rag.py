@@ -1,13 +1,15 @@
 import argparse
 import datetime
 from pathlib import Path
-
+from contextlib import nullcontext
 
 from mlops.mlflow_utils import MlflowTracker
 from src.config_loader import get_setting
 from src.documents_processor import logger
 from src.vector_store import VectorStore
 from src.documents_processor import DocumentProcessor
+
+
 
 def train(document_path: str, clear_existing: bool = False, use_mflow: bool = True):
     settings = get_setting()
@@ -16,7 +18,7 @@ def train(document_path: str, clear_existing: bool = False, use_mflow: bool = Tr
         mlflow_tracker = MlflowTracker(experiment_name="rag_training")
 
     run_name = f"training_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    with mlflow_tracker.start_run(run_name=run_name) as run if mlflow_tracker else nullcontext():
+    with (mlflow_tracker.start_run(run_name=run_name) as run if mlflow_tracker else nullcontext()):
         logger.info("Starting RAG training pipeline...")
         logger.info(f"Document patg: {document_path}")
         logger.info(f"Vector Store path: {settings.vector_store_path}")
@@ -58,6 +60,7 @@ def train(document_path: str, clear_existing: bool = False, use_mflow: bool = Tr
 
         if not chunks:
             logger.warning("No documents found to process")
+            return
 
         logger.info(f"Processing {len(chunks)} chunks from documents")
 
@@ -78,13 +81,8 @@ def train(document_path: str, clear_existing: bool = False, use_mflow: bool = Tr
 
             logger.info(f"Training completed successfully")
             logger.info(f"Total chunks: {total_chunks}")
-            logger.info("Vector store saved to: {setting.vector_store_path}")
+            logger.info(f"Vector store saved to: {settings.vector_store_path}")
 
-class nullcontext:
-    def __enter__(self):
-        return self
-    def __exit__(self, *args):
-        pass
 
 
 if __name__ == "__main__":

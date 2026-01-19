@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional, Dict
 
 
-from opentelemetry.sdk.resources import psutil
+import psutil
 from prometheus_client import Counter, Histogram, Gauge, start_http_server
 import logging
 

@@ -34,7 +34,7 @@ class HyperparamTuning:
 
         self.study = optuna.create_study(
             study_name=self.study_name,
-            directions="maximize",
+            direction="maximize",
             sampler=TPESampler(seed=42),
             pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=10),
         )
@@ -100,7 +100,7 @@ class HyperparamTuning:
                 results = []
                 for question in self.test_questions:
                     try:
-                        result = rag_chain.query(question, top_key=params["top_key"])
+                        result =rag_chain.query(question=question, top_k=params["top_k"])
                         results.append({
                             "question": question,
                             "answer": result["answer"],
@@ -128,7 +128,7 @@ class HyperparamTuning:
                 return float(metrics["overall_score"])
         except Exception as e:
             logger.error(f"Error in trial {trial.number}: {str(e)}")
-            raise 0.0
+            return 0.0
     def optimize(self) -> Dict[str, float]:
 
         logger.info(f"Starting hyperparameter optimization with {self.n_trials} trials")
@@ -144,7 +144,7 @@ class HyperparamTuning:
         study_date = {
             "best_params": best_params,
             "best_value": best_value,
-            "n_trials": len(self.study.n_trials),
+            "n_trials": len(self.study.trials),
             "study_name": self.study_name,
         }
 

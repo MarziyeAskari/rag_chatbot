@@ -5,7 +5,7 @@ from typing import List
 
 import mlflow
 from torch.utils.data import DataLoader
-
+from contextlib import nullcontext
 from mlops.mlflow_utils import MlflowTracker
 from src.config_loader import get_setting
 from src.database import DatabaseManager, MessageModel
@@ -13,7 +13,7 @@ from sentence_transformers import SentenceTransformer, InputExample, losses
 import logging
 
 logger = logging.getLogger(__name__)
-settings = get_setting()
+
 
 def build_conversation_pairs(
         db_manager: DatabaseManager,
@@ -52,7 +52,7 @@ def finetune_embedding(
         max_pairs_per_session: int,
         use_mlflow: bool = True,
         register_name: str = "conversation_embeddings", ):
-
+    settings = get_setting()
     if not settings.use_database_session:
         logger.error("Database session are required for access conversation history.")
         return
@@ -109,11 +109,7 @@ def finetune_embedding(
             mlflow_tracker.log_artifacts(str(output_path),artifact_path="embedding_model_files")
 
 
-class nullcontext:
-    def __enter__(self):
-        return self
-    def __exit__(self, *args):
-        pass
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser( description="finetune embedding model with conversation history")
@@ -125,12 +121,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", type="str", help="Directory to save fine-tune model", default=None)
     parser.add_argument("--register-name", action="store", default="conversation_embeddings")
     parser.add_argument("--no-mlflow", action="store_true", help="Disable MLflow logging", default=False)
-    parser.add_argument(
-        "--register-mlflow",
-        type=str,
-        default="conversation_embeddings",
-        help="Register MLflow logging with MLflow logging",
-    )
+
     args = parser.parse_args()
     settings = get_setting()
 
