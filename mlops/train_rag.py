@@ -1,94 +1,53 @@
-import argparse
-import datetime
+# mlops/train_rag.py
+from __future__ import annotations
+
+import logging
 from pathlib import Path
-from contextlib import nullcontext
+from typing import Optional
 
+from mlops.common import load_settings, build_processor, build_vector_store, safe_run_ctx
 from mlops.mlflow_utils import MlflowTracker
-from src.config_loader import get_setting
-from src.documents_processor import logger
-from src.vector_store import VectorStore
-from src.documents_processor import DocumentProcessor
+
+logger = logging.getLogger(__name__)
 
 
+def train(documents_dir: str, *, clear_existing: bool = False, use_mlflow: bool = True) -> None:
+    s = load_settings()
 
-def train(document_path: str, clear_existing: bool = False, use_mflow: bool = True):
-    settings = get_setting()
-    mlflow_tracker = None
-    if use_mflow:
-        mlflow_tracker = MlflowTracker(experiment_name="rag_training")
+    tracker = MlflowTracker("rag_training") if use_mlflow else None
+    run_name = "train_rag"
 
-    run_name = f"training_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    with (mlflow_tracker.start_run(run_name=run_name) as run if mlflow_tracker else nullcontext()):
-        logger.info("Starting RAG training pipeline...")
-        logger.info(f"Document patg: {document_path}")
-        logger.info(f"Vector Store path: {settings.vector_store_path}")
+    with safe_run_ctx(tracker, run_name):
+        if tracker:
+            tracker.log_params({
+                "chunk_size": s.chunk_size,
+                "chunk_overlap": s.chunk_overlap,
+                "embedding_provider": s.embedding_provider,
+                "embedding_model": s.embedding_model,
+                "collection_name": s.collection_name,
+                "vector_store_path": s.vector_store_path,
+            })
 
-        if mlflow_tracker:
-            mlflow_tracker.log_params({
-                "chunk_size": settings.chunk_size,
-                "chunk_overlap": settings.chunk_overlap,
-                "embedding_model": settings.embedding_model,
-                "embedding_provider": settings.embedding_provider,
-                "collection_name": settings.collection_name, }
-            )
-        logger.info(f"Initializing vector store...")
-        vector_store = VectorStore(
-            persist_directory=settings.vector_store_path,
-            collection_name=settings.collection_name,
-            embedding_model=settings.embedding_model,
-            embedding_provider=settings.embedding_provider,
-            api_key=settings.openai_api_key if settings.embedding_provider == "openai" else None
-        )
+        processor = build_processor(s)
+        store = build_vector_store(s)
 
         if clear_existing:
-            logger.info("Clearing existing vector store...")
-            vector_store.delete_collection()
-            vector_store._load_or_create_vectorstore()
+            store.delete_collection()
+            store._load_or_create_vectorstore()
 
-        logger.info("processing documents...")
-        document_path = Path(document_path)
+        p = Path(documents_dir)
+        if not p.exists():
+            raise FileNotFoundError(f"Documents directory not found: {p}")
 
-        if not document_path.exists():
-            logger.error(f"Document path does not exist: {document_path}")
-            return
-        document_processor = DocumentProcessor(
-            chunk_size=settings.chunk_size,
-            chunk_overlap=settings.chunk_overlap,
-        )
-
-        chunks = document_processor.process_directory(str(document_path))
-
+        chunks = processor.process_directory(str(p))
         if not chunks:
-            logger.warning("No documents found to process")
+            logger.warning("No chunks created; nothing to ingest.")
             return
 
-        logger.info(f"Processing {len(chunks)} chunks from documents")
+        store.add_documents(chunks)
+        size = store.get_collection_size()
 
-        logger.info(f"Adding chunks to vector store...")
-        ids = vector_store.add_documents(chunks)
+        logger.info(f"Ingested chunks. Vector store size: {size}")
 
-        total_chunks = vector_store.get_collection_size()
-
-        if mlflow_tracker:
-            mlflow_tracker.log_metrics({
-                "total_chunks": total_chunks,
-                "num_documents": len(set(chunk.metadata.get("source_file", "") for chunk in chunks))
-            })
-
-            mlflow_tracker.log_params({
-                "vector_store_path": settings.vector_store_path,
-            })
-
-            logger.info(f"Training completed successfully")
-            logger.info(f"Total chunks: {total_chunks}")
-            logger.info(f"Vector store saved to: {settings.vector_store_path}")
-
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train RAG chatbot on documents")
-    parser.add_argument("--documents", type=str, default="./data/documents", help="Path to directory containing documents")
-    parser.add_argument("--clear", action="store_true", help="Clear existing vector store")
-    parser.add_argument("--no-mflow", action="store_true", help="Disable Mlflow tracker")
-    args = parser.parse_args()
-    train(args.documents, args.clear,use_mflow=not args.no_mflow)
+        if tracker:
+            tracker.log_metrics({"vector_store_size": float(size)})
