@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Optional, List, Any
 import logging
 from langchain_community.embeddings import OpenAIEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_core.documents import Document
 
 logger = logging.getLogger(__name__)
@@ -21,9 +21,9 @@ class VectorStore:
         if embedding_provider == "openai" and api_key:
             self.embeddings = OpenAIEmbeddings(api_key=api_key)
         else:
-            from langchain_community.embeddings import HuggingFaceEmbeddings
+            from langchain_huggingface import HuggingFaceEmbeddings
             self.embeddings = HuggingFaceEmbeddings(
-                embedding_model=embedding_model,
+                model_name=embedding_model,
                 model_kwargs={"device": "cpu"}
             )
         self.vectorstore = None
@@ -49,12 +49,12 @@ class VectorStore:
     def add_documents(self, documents: List[Document]):
         try:
             ids = self.vectorstore.add_documents(documents)
-            self.vectorstore.persist()
             logger.info(f"Added {len(documents)} documents to vectorstore")
             return ids
         except Exception as e:
             logger.error(f"Error adding documents: {str(e)}")
             raise
+
 
     def similarity_search(self, query: str, k: int = 5, threshold: float = 0.7):
         results = self.vectorstore.similarity_search_with_score(query, k=k)

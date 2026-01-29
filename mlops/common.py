@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BuiltComponents:
-    settings: Settings
+    settings:Settings
     processor: DocumentProcessor
     store: VectorStore
     chain: RagChain

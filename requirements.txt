@@ -1,3 +1,6 @@
+langchain-openai
+langchain-chroma
+langchain-huggingface
 packaging
 opentelemetry-instrumentation-openai
 prometheus-client

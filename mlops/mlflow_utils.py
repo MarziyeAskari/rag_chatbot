@@ -14,17 +14,21 @@ logger = logging.getLogger(__name__)
 
 class MlflowTracker:
     def __init__(self, experiment_name: str, tracking_uri: Optional[str] = None, tracking_dir: str = "./mlruns"):
-        uri = tracking_uri or os.getenv("MLFLOW_TRACKING_URI")
-        if not uri:
-            base = Path(tracking_dir).resolve()
-            base.mkdir(parents=True, exist_ok=True)
-            uri = f"file://{base.as_posix()}"
-
+        uri = tracking_uri or self._default_file_tracking_uri(tracking_dir)
         mlflow.set_tracking_uri(uri)
         mlflow.set_experiment(experiment_name)
 
         self.experiment_name = experiment_name
         self.tracking_uri = uri
+
+    @staticmethod
+    def _default_file_tracking_uri(tracking_dir: Optional[str] = None) -> str:
+        base = Path(tracking_dir) if tracking_dir else Path(os.getenv("MLFLOW_TRACKING_DIR", "./mlruns"))
+        base = base.expanduser().resolve()
+        base.mkdir(parents=True, exist_ok=True)
+
+        # IMPORTANT: as_uri() returns correct Windows form: file:///D:/...
+        return base.as_uri()
 
     def start_run(self, run_name: Optional[str] = None, tags: Optional[Dict[str, str]] = None, nested: bool = False):
         run_name = run_name or f"run_{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
@@ -47,3 +51,4 @@ class MlflowTracker:
     def active_run_id(self) -> Optional[str]:
         run = mlflow.active_run()
         return run.info.run_id if run else None
+
