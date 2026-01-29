@@ -3,3 +3,5 @@
 /venv
 /.env
 /__pycach__
+/data/
+/mlruns/
