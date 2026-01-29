@@ -10,39 +10,40 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
-  { name = "Marziye Askari" }
+    { name = "Marziye Askari" }
 ]
 
 dependencies = [
-  "langchain-openai",
-  "langchain-chroma",
-  "langchain-huggingface",
-  "packaging",
-  "opentelemetry-instrumentation-openai",
-  "prometheus-client",
-  "rouge-score",
-  "optuna",
-  "torch",
-  "sentence-transformers",
-  "mlflow-skinny",
-  "uvicorn",
-  "sqlalchemy",
-  "langchain-classic",
-  "langchain-community",
-  "langchain-core",
-  "langchain-text-splitters",
-  "langchain",
-  "pyyaml",
-  "pydantic-settings",
-  "pydantic",
-  "python-dotenv",
-  "fastapi",
-  "python-multipart"
+    "langchain-openai",
+    "langchain-chroma",
+    "langchain-huggingface",
+    "packaging",
+    "opentelemetry-instrumentation-openai",
+    "prometheus-client",
+    "rouge-score",
+    "optuna",
+    "torch",
+    "sentence-transformers",
+    "mlflow-skinny",
+    "uvicorn",
+    "sqlalchemy",
+    "langchain-classic",
+    "langchain-community",
+    "langchain-core",
+    "langchain-text-splitters",
+    "langchain",
+    "pyyaml",
+    "pydantic-settings",
+    "pydantic",
+    "python-dotenv",
+    "fastapi",
+    "python-multipart"
 ]
 
 [project.optional-dependencies]
 dev = [
-  "black"
+    "black",
+    "ruff"
 ]
 
 

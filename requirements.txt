@@ -22,3 +22,4 @@ pydantic
 python-dotenv
 fastapi
 black
+ruff
