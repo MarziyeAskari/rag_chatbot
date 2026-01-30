@@ -29,6 +29,7 @@ dependencies = [
     "sqlalchemy",
     "langchain-classic",
     "langchain-community",
+    "langchain-ollama",
     "langchain-core",
     "langchain-text-splitters",
     "langchain",
