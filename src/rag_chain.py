@@ -5,12 +5,12 @@ from typing import Optional, List, Tuple, Dict, Any
 
 import logging
 
-
+from langchain_ollama import OllamaLLM
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_classic.chains.retrieval import create_retrieval_chain
 
 from langchain_openai import ChatOpenAI
-from langchain_community.llms.ollama import Ollama
+
 
 from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
@@ -54,14 +54,8 @@ class RagChain:
                 api_key=api_key,
             )
         else:
-            # Ollama typically does not need api_key
-            self.llm = Ollama(model=model, temperature=temperature)
+            self.llm = OllamaLLM(model=model, temperature=temperature)
 
-        # ---- Prompt ----
-        # NOTE: create_retrieval_chain usually expects keys:
-        # - input: question
-        # - context: retrieved docs
-        # So prompt includes {context} and {input}.
         self.prompt = PromptTemplate(
             template=(
                 "You are a helpful assistant.\n"

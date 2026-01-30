@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import yaml
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -24,7 +24,6 @@ def _read_yaml(path: str) -> Dict[str, Any]:
 
 
 class Settings(BaseSettings):
-    # ---------- APP ----------
     app_name: str = "RAG Chatbot"
     app_version: str = "1.0.0"
     app_host: str = "0.0.0.0"
@@ -76,21 +75,18 @@ class Settings(BaseSettings):
     embedding_finetune_max_sessions: int = 200
     embedding_finetune_max_pairs_per_session: int = 50
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    class Settings(BaseSettings):
+        model_config = SettingsConfigDict(
+            env_file=".env",
+            env_file_encoding="utf-8",
+            case_sensitive=False,
+            extra="ignore",  # optional but very useful
+        )
 
 
 def get_setting(config_path: str = "configs/config.yaml") -> Settings:
-    """
-    Load Settings from:
-      1) defaults
-      2) YAML
-      3) environment variables override both
-    """
     cfg = _read_yaml(config_path)
 
-    # Map YAML sections -> Settings fields
     merged: Dict[str, Any] = {}
 
     app = cfg.get("app", {})
