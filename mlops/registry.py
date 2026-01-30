@@ -1,7 +1,7 @@
-# mlops/registry.py
+
 from __future__ import annotations
 
-from typing import Optional, Dict, List
+from typing import Optional, Dict
 import logging
 
 import mlflow

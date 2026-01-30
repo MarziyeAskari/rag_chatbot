@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, List, Any
+from typing import Optional, List
 import logging
 from langchain_community.embeddings import OpenAIEmbeddings
 from langchain_chroma import Chroma
@@ -44,7 +44,7 @@ class VectorStore:
                 embedding_function=self.embeddings,
                 collection_name=self.collection_name,
             )
-            logger.info(f"Created new vector store ")
+            logger.info("Created new vector store ")
 
     def add_documents(self, documents: List[Document]):
         try:
