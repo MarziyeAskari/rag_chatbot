@@ -37,14 +37,14 @@ dependencies = [
     "pydantic",
     "python-dotenv",
     "fastapi",
-    "python-multipart",
-    "pytest"
+    "python-multipart"
 ]
 
 [project.optional-dependencies]
 dev = [
     "black",
-    "ruff"
+    "ruff",
+    "pytest"
 ]
 
 
