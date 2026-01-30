@@ -37,7 +37,8 @@ dependencies = [
     "pydantic",
     "python-dotenv",
     "fastapi",
-    "python-multipart"
+    "python-multipart",
+    "pytest"
 ]
 
 [project.optional-dependencies]
