@@ -1,9 +1,8 @@
-# mlops/finetune_embedding.py
+
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import List, Optional, Dict
+from typing import List
 
 from torch.utils.data import DataLoader
 from sentence_transformers import SentenceTransformer, InputExample, losses

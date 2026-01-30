@@ -1,4 +1,4 @@
-# mlops/mlflow_utils.py
+
 from __future__ import annotations
 
 import datetime
@@ -26,8 +26,6 @@ class MlflowTracker:
         base = Path(tracking_dir) if tracking_dir else Path(os.getenv("MLFLOW_TRACKING_DIR", "./mlruns"))
         base = base.expanduser().resolve()
         base.mkdir(parents=True, exist_ok=True)
-
-        # IMPORTANT: as_uri() returns correct Windows form: file:///D:/...
         return base.as_uri()
 
     def start_run(self, run_name: Optional[str] = None, tags: Optional[Dict[str, str]] = None, nested: bool = False):
