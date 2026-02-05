@@ -3,24 +3,24 @@
 
 #Application Setting
 app:
-    name: "Rag chatbot"
-    version:  "1.0.0"
-    host: "0.0.0.0"
-    port: 8000
-    debug:  false
+  name: "Rag chatbot"
+  version: "1.0.0"
+  host: "0.0.0.0"
+  port: 8000
+  debug: false
 
 # LLM Setting
 llm:
-    provider: "openai"
-    model:  "gpt-4o-mini"
-    temperature:  0.7
-    max_tokens: 1000
-    api-key:  "${OPENAI_API_KEY}"
+  provider: "openai"
+  model: "gpt-4o-mini"
+  temperature: 0.7
+  max_tokens: 1000
+  api-key: "${OPENAI_API_KEY}"
 
 # Embedding Setting
 embeddings:
-    provider: "Sentence Transformer"
-    model:  "sentence-transformers/all-MiniLM-L6-v2"
+  provider: "Sentence Transformer"
+  model: "sentence-transformers/all-MiniLM-L6-v2"
 
 # Vector Store Settings
 vector_database:
@@ -30,13 +30,13 @@ vector_database:
 
 # Document Setting(Langchain)
 document_processing:
-    chunk_size: 1000
-    chunk_overlap: 200
-    supported_format:
-        - "pdf"
-        - "md"
-        - "txt"
-        - "docx"
+  chunk_size: 1000
+  chunk_overlap: 200
+  supported_format:
+    - "pdf"
+    - "md"
+    - "txt"
+    - "docx"
 
 # Retrieval Settings
 retrieval:
@@ -46,26 +46,26 @@ retrieval:
 
 #Data Path
 path:
-    documents:  ""
-    processed: ""
-    vector_store: ""
-    uploads: ""
+  documents: ""
+  processed: ""
+  vector_store: ""
+  uploads: ""
 #session Management
 session:
-    use_database: true
-    database_url: ""
-    database_path:  "./data/session.db"
-    session_timeout_hour: 24
-    max_history_per_session: 50
+  use_database: true
+  database_url: "${SESSION_DATABASE_URL}"
+  database_path: "./data/sessions.db"
+  session_timeout_hour: 24
+  max_history_per_session: 50
 
 embedding_finetune:
-    enabled: false
-    base_model: "sentence-transformers/all-MiniLM-L6-v2"
-    output_dir: "./model/embedding_finetuned"
-    epoch: 1
-    batch_size: 6
-    max_session: 200
-    max_pairs_per_session: 50
+  enabled: false
+  base_model: "sentence-transformers/all-MiniLM-L6-v2"
+  output_dir: "./model/embedding_finetuned"
+  epoch: 1
+  batch_size: 6
+  max_session: 200
+  max_pairs_per_session: 50
 
 #Logging
 logging:

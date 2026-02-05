@@ -2,7 +2,7 @@
 /.venv
 /venv
 /.env
-/__pycach__
+/__pycache__
 /data/
 /mlruns/
 /chat_bot_rag.egg-info/

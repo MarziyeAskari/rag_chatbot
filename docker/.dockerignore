@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+.venv/
+venv/
+.env
+
+.git/
+.gitignore
+.idea/
+
+*.log
+
+
+chat_bot_rag.egg-info/

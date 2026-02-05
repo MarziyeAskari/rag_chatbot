@@ -38,7 +38,8 @@ dependencies = [
     "pydantic",
     "python-dotenv",
     "fastapi",
-    "python-multipart"
+    "python-multipart",
+    "psycopg[binary]"
 ]
 
 [project.optional-dependencies]

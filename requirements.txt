@@ -25,3 +25,4 @@ fastapi
 black
 ruff
 pytest
+psycopg[binary]

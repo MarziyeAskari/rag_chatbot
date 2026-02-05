@@ -1,18 +1,26 @@
 services:
   api:
     build:
-      context: ..
+      context: .
       dockerfile: docker/Dockerfile
+    image: marziyeaskari/rag-chatbot:latest
     env_file:
-      - ../.env
+      - .env
+    environment:
+      # inside docker network, host is the service name: postgres
+      SESSION_DATABASE_URL: postgresql+psycopg://rag:rag@postgres:5432/rag
+
+      # optional: if you want your app to talk to mlflow server
+      MLFLOW_TRACKING_URI: http://mlflow:5000
     ports:
       - "8000:8000"
-      - "9090:9090"   # prometheus metrics
+      - "9090:9090"
     volumes:
-      - ../data:/app/data
-      - ../mlruns:/app/mlruns
+      - ./data:/app/data
+      - ./mlruns:/app/mlruns
     depends_on:
       - postgres
+      - mlflow
 
   postgres:
     image: postgres:16
@@ -24,6 +32,11 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d rag"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   mlflow:
     image: ghcr.io/mlflow/mlflow:latest
@@ -33,10 +46,15 @@ services:
       mlflow server
       --host 0.0.0.0
       --port 5000
-      --backend-store-uri /mlflow/mlruns
+      --backend-store-uri sqlite:////mlflow/mlflow.db
       --default-artifact-root /mlflow/mlruns
     volumes:
-      - ../mlruns:/mlflow/mlruns
+      - ./mlruns:/mlflow/mlruns
+      - ./mlflow_db:/mlflow
 
 volumes:
   pgdata:
+
+
+
+
