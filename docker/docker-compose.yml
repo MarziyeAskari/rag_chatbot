@@ -1,15 +1,12 @@
 services:
   api:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
     image: marziyeaskari/rag-chatbot:latest
+    restart: unless-stopped
     env_file:
       - .env
     environment:
       # inside docker network, host is the service name: postgres
       SESSION_DATABASE_URL: postgresql+psycopg://rag:rag@postgres:5432/rag
-
       # optional: if you want your app to talk to mlflow server
       MLFLOW_TRACKING_URI: http://mlflow:5000
     ports:
@@ -19,15 +16,25 @@ services:
       - ./data:/app/data
       - ./mlruns:/app/mlruns
     depends_on:
-      - postgres
-      - mlflow
+      postgres:
+        condition: service_healthy
+      mlflow:
+        condition: service_started
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   postgres:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: rag
       POSTGRES_PASSWORD: rag
       POSTGRES_DB: rag
+    # IMPORTANT: do NOT expose Postgres to the internet
+    # ports:  <-- removed on purpose
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -35,9 +42,15 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   mlflow:
     image: ghcr.io/mlflow/mlflow:latest
+    restart: unless-stopped
     ports:
       - "5000:5000"
     command: >
@@ -49,10 +62,11 @@ services:
     volumes:
       - ./mlruns:/mlflow/mlruns
       - ./mlflow_db:/mlflow
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   pgdata:
-
-
-
-
