@@ -39,7 +39,9 @@ dependencies = [
     "python-dotenv",
     "fastapi",
     "python-multipart",
-    "psycopg[binary]"
+    "psycopg[binary]",
+    "pypdf",
+
 ]
 
 [project.optional-dependencies]
