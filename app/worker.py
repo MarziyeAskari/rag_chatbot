@@ -66,8 +66,10 @@ def main():
             logger.exception("Worker failed; message will retry")
         finally:
             if tmp_path and os.path.exists(tmp_path):
-                try: os.remove(tmp_path)
-                except Exception: pass
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    pass
 
 if __name__ == "__main__":
     main()
