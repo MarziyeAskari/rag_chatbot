@@ -26,3 +26,7 @@ black
 ruff
 pytest
 psycopg[binary]
+
+boto3
+botocore
+langchain-postgres

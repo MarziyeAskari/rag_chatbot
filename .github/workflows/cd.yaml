@@ -1,0 +1,56 @@
+name: CD - Build & Push to ECR + Redeploy ECS
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: us-east-1
+      ECR_REPOSITORY: rag-chatbot-api
+      ECS_CLUSTER: rag-cluster
+      ECS_SERVICE: rag-api-service
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to ECR (latest + sha)
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          set -e
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}"
+
+          echo "Building ${IMAGE_URI}:latest"
+          docker build -f docker/Dockerfile -t "${IMAGE_URI}:latest" .
+
+          echo "Tagging ${IMAGE_URI}:${GITHUB_SHA}"
+          docker tag "${IMAGE_URI}:latest" "${IMAGE_URI}:${GITHUB_SHA}"
+
+          echo "Pushing tags..."
+          docker push "${IMAGE_URI}:latest"
+          docker push "${IMAGE_URI}:${GITHUB_SHA}"
+
+      - name: Force new ECS deployment (pull latest)
+        run: |
+          aws ecs update-service \
+            --region "${AWS_REGION}" \
+            --cluster "${ECS_CLUSTER}" \
+            --service "${ECS_SERVICE}" \
+            --force-new-deployment

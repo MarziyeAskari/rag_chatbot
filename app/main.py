@@ -1,21 +1,27 @@
+import os
+import shutil
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional, List, Union
 import logging
 import time
-
+import tempfile
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from src.config_loader import get_setting
 from src.documents_processor import DocumentProcessor
+from src.queue import SQSClient
 from src.vector_store import VectorStore
 from src.rag_chain import RagChain
 from src.session_manager import SessionManager
 from src.db_session_manager import DatabaseSessionManager
+from src.upload_storage import S3UploadStorage, LocalUploadStorage, UploadStorage
 
 logger = logging.getLogger(__name__)
 settings = get_setting()
@@ -24,8 +30,8 @@ document_processor: Optional[DocumentProcessor] = None
 vector_store: Optional[VectorStore] = None
 rag_chain: Optional[RagChain] = None
 session_manager: Optional[Union[SessionManager, DatabaseSessionManager]] = None
-
-
+upload_storage: Optional[UploadStorage] = None
+sqs_client: SQSClient | None = None  # init at startup
 # ----------------------------
 # Lifespan (startup / shutdown)
 # ----------------------------
@@ -33,6 +39,19 @@ session_manager: Optional[Union[SessionManager, DatabaseSessionManager]] = None
 async def lifespan(app: FastAPI):
     global document_processor, vector_store, rag_chain, session_manager
     logger.info("Starting RAG API...")
+
+    # Uploads
+    global upload_storage
+    if settings.upload_storage == "s3":
+        upload_storage =S3UploadStorage(
+            bucket=settings.s3_bucket_name,
+            prefix=settings.s3_prefix,
+            region=settings.aws_region
+            )
+    else:
+        upload_storage = LocalUploadStorage(
+            base_dir=str(Path(settings.uploads_path)),
+        )
 
     # Sessions
     if settings.use_database_session:
@@ -57,9 +76,11 @@ async def lifespan(app: FastAPI):
     vector_store = VectorStore(
         persist_directory=settings.vector_store_path,
         collection_name=settings.collection_name,
-        embedding_provider=settings.embedding_provider,
         embedding_model=settings.embedding_model,
+        embedding_provider=settings.embedding_provider,
         api_key=settings.openai_api_key if settings.embedding_provider == "openai" else None,
+        vector_store_type=settings.vector_store_type,
+        db_url=settings.vector_store_db_url,
     )
 
     rag_chain = RagChain(
@@ -157,25 +178,64 @@ async def query(req: QueryRequest):
         session_id=session.session_id,
     )
 
+def _safe_name(name:str) -> str:
+    safe="".join(c for c in (name or "file") if c.isalnum() or c in "._-")
+    return safe[:80] or "file"
 
-@app.post("/upload", response_model=UploadResponse)
+@app.post("/upload")
 async def upload(file: UploadFile = File(...)):
-    if not document_processor or not vector_store:
+    if not document_processor or not vector_store or not upload_storage:
         raise HTTPException(503, "System not ready")
 
-    path = Path(settings.uploads_path) / file.filename
-    path.parent.mkdir(parents=True, exist_ok=True)
+    job_id = str(uuid.uuid4())
+    tmp_path = None
 
-    with open(path, "wb") as f:
-        f.write(await file.read())
+    try:
+        # stream to temp file (avoids RAM spikes)
+        safe_name = _safe_name(file.filename)
+        with tempfile.NamedTemporaryFile(mode="wb", delete=False, dir="/tmp", suffix=f"_{safe_name}") as tmp:
+            tmp_path = tmp.name
+            shutil.copyfileobj(file.file, tmp)
 
-    chunks = document_processor.process_files(str(path))
-    vector_store.add_documents(chunks)
+        # store original in local or S3
+        def _save():
+            with open(tmp_path, "rb") as f:
+                return upload_storage.save_bytes(file.filename, f.read())
 
-    return UploadResponse(
-        message="File processed",
-        total_chunks=vector_store.get_collection_size(),
-    )
+        saved = await run_in_threadpool(_save)
+
+        # --- AWS async mode ---
+        if settings.upload_async:
+            if not sqs_client:
+                raise HTTPException(503, "SQS not configured")
+
+            if not getattr(saved, "bucket", "") or not getattr(saved, "key", ""):
+                raise HTTPException(500, "S3 storage must return bucket/key for worker")
+
+            payload = {"job_id": job_id, "bucket": saved.bucket, "key": saved.key, "filename": file.filename}
+            await run_in_threadpool(sqs_client.send, payload)
+
+            # return immediately
+            return {"status": "accepted", "job_id": job_id, "uri": saved.uri}
+
+        # --- Local sync mode ---
+        chunks = await run_in_threadpool(document_processor.process_files, tmp_path)
+        await run_in_threadpool(vector_store.add_documents, chunks)
+        total_chunks = vector_store.get_collection_size()
+
+        return {"status": "done", "job_id": job_id, "uri": saved.uri, "total_chunks": total_chunks}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Upload failed")
+        raise HTTPException(500, f"Upload failed: {str(e)}")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
 
 
 @app.get("/health")

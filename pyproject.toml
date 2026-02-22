@@ -41,7 +41,10 @@ dependencies = [
     "python-multipart",
     "psycopg[binary]",
     "pypdf",
-
+    "boto3" ,
+    "psycopg2-binary",
+    "langchain_postgres",
+    "botocore"
 ]
 
 [project.optional-dependencies]

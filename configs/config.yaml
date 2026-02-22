@@ -1,7 +1,3 @@
-#Rag chatbot Configurations
-
-
-#Application Setting
 app:
   name: "Rag chatbot"
   version: "1.0.0"
@@ -9,48 +5,50 @@ app:
   port: 8000
   debug: false
 
-# LLM Setting
+# runtime mode switches
+runtime:
+  app_mode: "${APP_MODE}"            # local|aws
+  upload_async: "${UPLOAD_ASYNC}"    # true|false
+  sqs_queue_url: "${SQS_QUEUE_URL}"  # only in aws async
+
 llm:
   provider: "openai"
   model: "gpt-4o-mini"
   temperature: 0.7
   max_tokens: 1000
-  api-key: "${OPENAI_API_KEY}"
 
-# Embedding Setting
 embeddings:
-  provider: "Sentence Transformer"
+  provider: "sentence-transformers"
   model: "sentence-transformers/all-MiniLM-L6-v2"
 
-# Vector Store Settings
 vector_database:
-  type: "chroma"  # Options: chroma, faiss
+  type: "${VECTOR_STORE_TYPE}"       # chroma|pgvector
   persist_directory: "./data/vectorstore"
+  vector_store_db_url: "${VECTOR_STORE_DB_URL}"
   collection_name: "rag_documents"
 
-# Document Setting(Langchain)
+
 document_processing:
   chunk_size: 1000
   chunk_overlap: 200
-  supported_format:
-    - "pdf"
-    - "md"
-    - "txt"
-    - "docx"
+  supported_format: ["pdf", "md", "txt", "docx"]
 
-# Retrieval Settings
 retrieval:
   top_k: 5
   similarity_threshold: 0.7
   search_type: "similarity"
 
-#Data Path
 path:
-  documents: ""
-  processed: ""
-  vector_store: ""
-  uploads: ""
-#session Management
+  documents: "./data/documents"
+  processed: "./data/processed"
+  uploads: "./data/uploads"
+
+uploads:
+  storage: "${UPLOAD_STORAGE}"       # local|s3
+  s3_bucket: "${S3_BUCKET_NAME}"
+  s3_prefix: "uploads/"
+  aws_region: "${AWS_REGION}"
+
 session:
   use_database: true
   database_url: "${SESSION_DATABASE_URL}"
@@ -58,17 +56,6 @@ session:
   session_timeout_hour: 24
   max_history_per_session: 50
 
-embedding_finetune:
-  enabled: false
-  base_model: "sentence-transformers/all-MiniLM-L6-v2"
-  output_dir: "./model/embedding_finetuned"
-  epoch: 1
-  batch_size: 6
-  max_session: 200
-  max_pairs_per_session: 50
-
-#Logging
 logging:
   level: "INFO"
   file: "./logs/rag_chatbot.log"
-
