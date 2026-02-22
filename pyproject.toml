@@ -44,7 +44,8 @@ dependencies = [
     "boto3" ,
     "psycopg2-binary",
     "langchain_postgres",
-    "botocore"
+    "botocore",
+    "uvicorn"
 ]
 
 [project.optional-dependencies]
