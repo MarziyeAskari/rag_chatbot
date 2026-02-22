@@ -32,6 +32,8 @@ rag_chain: Optional[RagChain] = None
 session_manager: Optional[Union[SessionManager, DatabaseSessionManager]] = None
 upload_storage: Optional[UploadStorage] = None
 sqs_client: SQSClient | None = None  # init at startup
+
+
 # ----------------------------
 # Lifespan (startup / shutdown)
 # ----------------------------
@@ -42,6 +44,10 @@ async def lifespan(app: FastAPI):
 
     # Uploads
     global upload_storage
+    global sqs_client
+    if settings.upload_async:
+        sqs_client = SQSClient(settings.sqs_queue_url, settings.aws_region)
+
     if settings.upload_storage == "s3":
         upload_storage =S3UploadStorage(
             bucket=settings.s3_bucket_name,
