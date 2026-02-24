@@ -106,6 +106,11 @@ class VectorStore:
         logger.info("Deleted collection %s", self.collection_name)
 
     def get_collection_size(self) -> int:
-        if self.vector_store_type == "chroma":
-            return self.vectorstore._collection.count()
+        """Return number of vectors stored in the collection."""
+        if self.vector_store_type == "chroma" and self.vectorstore is not None:
+            try:
+                return self.vectorstore._collection.count()
+            except Exception as e:
+                logger.error(f"Failed to get collection size: {e}")
+                return 0
         return 0

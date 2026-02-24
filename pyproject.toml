@@ -45,7 +45,8 @@ dependencies = [
     "psycopg2-binary",
     "langchain_postgres",
     "botocore",
-    "uvicorn"
+    "uvicorn",
+    "starlette",
 ]
 
 [project.optional-dependencies]

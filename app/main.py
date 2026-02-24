@@ -37,72 +37,88 @@ sqs_client: SQSClient | None = None  # init at startup
 # ----------------------------
 # Lifespan (startup / shutdown)
 # ----------------------------
+import asyncio
+
+ready_event = asyncio.Event()   # becomes set when init finished
+init_error: Exception | None = None
+
+async def _init_pipeline():
+    global document_processor, vector_store, rag_chain, session_manager, upload_storage, sqs_client, init_error
+    try:
+        logger.info("Initializing pipeline...")
+
+        # SQS
+        if settings.upload_async:
+            sqs_client = SQSClient(settings.sqs_queue_url, settings.aws_region)
+
+        # Upload storage
+        if settings.upload_storage == "s3":
+            upload_storage = S3UploadStorage(
+                bucket=settings.s3_bucket_name,
+                prefix=settings.s3_prefix,
+                region=settings.aws_region,
+            )
+        else:
+            upload_storage = LocalUploadStorage(base_dir=str(Path(settings.uploads_path)))
+
+        # Sessions
+        if settings.use_database_session:
+            session_manager = DatabaseSessionManager(
+                database_url=settings.session_database_url,
+                database_path=settings.session_database_path,
+                session_timeout=settings.session_timeout,
+                max_history_per_session=settings.max_history_per_session,
+            )
+        else:
+            session_manager = SessionManager(
+                session_timeout=settings.session_timeout,
+                max_history_per_session=settings.max_history_per_session,
+            )
+
+        # Document processing
+        document_processor = DocumentProcessor(
+            chunk_size=settings.chunk_size,
+            chunk_overlap=settings.chunk_overlap,
+        )
+
+        # Vector store (can block if DB not reachable)
+        vector_store = VectorStore(
+            persist_directory=settings.vector_store_path,
+            collection_name=settings.collection_name,
+            embedding_model=settings.embedding_model,
+            embedding_provider=settings.embedding_provider,
+            api_key=settings.openai_api_key if settings.embedding_provider == "openai" else None,
+            vector_store_type=settings.vector_store_type,
+            db_url=settings.vector_store_db_url,
+        )
+
+        # RAG chain
+        rag_chain = RagChain(
+            vector_store=vector_store,
+            llm_provider=settings.llm_provider,
+            model=settings.llm_model,
+            temperature=settings.llm_temperature,
+            max_tokens=settings.llm_max_tokens,
+            api_key=settings.openai_api_key if settings.llm_provider == "openai" else None,
+            top_k=settings.top_k,
+            similarity_threshold=settings.similarity_threshold,
+        )
+
+        logger.info("Pipeline ready ✅")
+        ready_event.set()
+
+    except Exception as e:
+        init_error = e
+        logger.exception("Pipeline init failed ❌")
+        # do NOT raise; keep API up for /health so ALB doesn't kill it
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global document_processor, vector_store, rag_chain, session_manager
     logger.info("Starting RAG API...")
-
-    # Uploads
-    global upload_storage
-    global sqs_client
-    if settings.upload_async:
-        sqs_client = SQSClient(settings.sqs_queue_url, settings.aws_region)
-
-    if settings.upload_storage == "s3":
-        upload_storage =S3UploadStorage(
-            bucket=settings.s3_bucket_name,
-            prefix=settings.s3_prefix,
-            region=settings.aws_region
-            )
-    else:
-        upload_storage = LocalUploadStorage(
-            base_dir=str(Path(settings.uploads_path)),
-        )
-
-    # Sessions
-    if settings.use_database_session:
-        session_manager = DatabaseSessionManager(
-            database_url=settings.session_database_url,
-            database_path=settings.session_database_path,
-            session_timeout=settings.session_timeout,
-            max_history_per_session=settings.max_history_per_session,
-        )
-    else:
-        session_manager = SessionManager(
-            session_timeout=settings.session_timeout,
-            max_history_per_session=settings.max_history_per_session,
-        )
-
-    # Core pipeline
-    document_processor = DocumentProcessor(
-        chunk_size=settings.chunk_size,
-        chunk_overlap=settings.chunk_overlap,
-    )
-
-    vector_store = VectorStore(
-        persist_directory=settings.vector_store_path,
-        collection_name=settings.collection_name,
-        embedding_model=settings.embedding_model,
-        embedding_provider=settings.embedding_provider,
-        api_key=settings.openai_api_key if settings.embedding_provider == "openai" else None,
-        vector_store_type=settings.vector_store_type,
-        db_url=settings.vector_store_db_url,
-    )
-
-    rag_chain = RagChain(
-        vector_store=vector_store,
-        llm_provider=settings.llm_provider,
-        model=settings.llm_model,
-        temperature=settings.llm_temperature,
-        max_tokens=settings.llm_max_tokens,
-        api_key=settings.openai_api_key if settings.llm_provider == "openai" else None,
-        top_k=settings.top_k,
-        similarity_threshold=settings.similarity_threshold,
-    )
-
+    # Start init in background; do not block startup
+    asyncio.create_task(_init_pipeline())
     yield
     logger.info("Shutting down RAG API")
-
 
 app = FastAPI(
     title=settings.app_name,
@@ -153,7 +169,11 @@ class UploadResponse(BaseModel):
     message: str
     total_chunks: int
 
-
+def _require_ready():
+    if init_error:
+        raise HTTPException(500, f"Init failed: {type(init_error).__name__}")
+    if not ready_event.is_set():
+        raise HTTPException(503, "System not ready")
 # ----------------------------
 # API
 # ----------------------------
@@ -161,7 +181,7 @@ class UploadResponse(BaseModel):
 async def query(req: QueryRequest):
     if not rag_chain or not session_manager:
         raise HTTPException(503, "System not ready")
-
+    _require_ready()
     start = time.time()
     session = session_manager.get_or_create_session(req.session_id)
     history = session_manager.get_conversation_history(session.session_id, max_messages=10)
@@ -190,6 +210,7 @@ def _safe_name(name:str) -> str:
 
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
+    _require_ready()
     if not document_processor or not vector_store or not upload_storage:
         raise HTTPException(503, "System not ready")
 
@@ -248,7 +269,8 @@ async def upload(file: UploadFile = File(...)):
 async def health():
     return {
         "status": "ok",
-        "vector_store_size": vector_store.get_collection_size() if vector_store else 0,
+        "ready": ready_event.is_set(),
+        "init_error": None if not init_error else type(init_error).__name__,
     }
 
 @app.post("/sessions")
