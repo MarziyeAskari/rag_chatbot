@@ -7,6 +7,7 @@ from typing import Optional, List, Union
 import logging
 import time
 import tempfile
+import asyncio
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -37,7 +38,7 @@ sqs_client: SQSClient | None = None  # init at startup
 # ----------------------------
 # Lifespan (startup / shutdown)
 # ----------------------------
-import asyncio
+
 
 ready_event = asyncio.Event()   # becomes set when init finished
 init_error: Exception | None = None
