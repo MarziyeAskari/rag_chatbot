@@ -26,7 +26,7 @@ black
 ruff
 pytest
 psycopg[binary]
-
+mlflow
 boto3
 botocore
 langchain-postgres

@@ -47,6 +47,7 @@ dependencies = [
     "botocore",
     "uvicorn",
     "starlette",
+    "mlflow"
 ]
 
 [project.optional-dependencies]
