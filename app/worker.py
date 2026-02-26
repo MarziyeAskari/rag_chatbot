@@ -52,7 +52,13 @@ def main():
 
             logger.info("Processing job=%s s3://%s/%s", job_id, bucket, key)
 
-            with tempfile.NamedTemporaryFile(delete=False, dir="/tmp") as tmp:
+            filename = os.path.basename(key)
+
+            with tempfile.NamedTemporaryFile(
+                    delete=False,
+                    dir="/tmp",
+                    suffix=f"_{filename}"
+            ) as tmp:
                 tmp_path = tmp.name
             s3.download_file(bucket, key, tmp_path)
 
