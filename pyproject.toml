@@ -42,7 +42,7 @@ dependencies = [
     "psycopg[binary]",
     "pypdf",
     "boto3" ,
-    "psycopg2-binary",
+    "psycopg",
     "langchain_postgres",
     "botocore",
     "uvicorn",

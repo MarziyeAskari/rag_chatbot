@@ -25,7 +25,7 @@ fastapi
 black
 ruff
 pytest
-psycopg[binary]
+psycopg
 mlflow
 boto3
 botocore
