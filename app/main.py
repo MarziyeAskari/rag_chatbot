@@ -172,17 +172,17 @@ class UploadResponse(BaseModel):
 
 def _require_ready():
     if init_error:
-        raise HTTPException(500, f"Init failed: {type(init_error).__name__}")
+        raise HTTPException(500, f"Init failed: {type(init_error).__name__}: {init_error}")
     if not ready_event.is_set():
-        raise HTTPException(503, "System not ready")
+        raise HTTPException(503, "System not ready (initializing)")
 # ----------------------------
 # API
 # ----------------------------
 @app.post("/query", response_model=QueryResponse)
 async def query(req: QueryRequest):
+    _require_ready()
     if not rag_chain or not session_manager:
         raise HTTPException(503, "System not ready")
-    _require_ready()
     start = time.time()
     session = session_manager.get_or_create_session(req.session_id)
     history = session_manager.get_conversation_history(session.session_id, max_messages=10)
@@ -287,12 +287,17 @@ async def create_session():
 
 @app.get("/vectorstore/stats")
 async def vectorstore_stats():
+    _require_ready()
     if not vector_store:
         raise HTTPException(status_code=503, detail="System not ready")
 
     return {
+        "vector_store_type": getattr(vector_store, "vector_store_type", None),
         "collection_name": vector_store.collection_name,
         "total_documents": vector_store.get_collection_size(),
-        "vector_store_path": str(vector_store.persist_directory),
+        # works only for chroma; pgvector returns None
+        "vector_store_path": getattr(vector_store, "persist_directory", None),
+        # useful for pgvector debugging (will be None for chroma)
+        "db_url_set": bool(getattr(vector_store, "db_url", None)),
     }
 

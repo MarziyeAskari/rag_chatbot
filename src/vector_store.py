@@ -21,6 +21,10 @@ class VectorStore:
         vector_store_type: str = "chroma",            # chroma | pgvector
         db_url: Optional[str] = None,                # required for pgvector
     ):
+        self.vector_store_type = (vector_store_type or "chroma").lower().strip()
+        self.persist_directory: Optional[str] = (
+            persist_directory if self.vector_store_type == "chroma" else None
+        )
         self.collection_name = collection_name
         self.vector_store_type = (vector_store_type or "chroma").lower().strip()
 
