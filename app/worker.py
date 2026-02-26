@@ -52,12 +52,14 @@ def main():
 
             logger.info("Processing job=%s s3://%s/%s", job_id, bucket, key)
 
-            filename = os.path.basename(key)
+            filename = os.path.basename(key) or "file"
+            safe = "".join(c for c in filename if c.isalnum() or c in "._-")
+            safe = safe[:80] or "file"
 
             with tempfile.NamedTemporaryFile(
                     delete=False,
                     dir="/tmp",
-                    suffix=f"_{filename}"
+                    suffix=f"_{safe}"
             ) as tmp:
                 tmp_path = tmp.name
             s3.download_file(bucket, key, tmp_path)
